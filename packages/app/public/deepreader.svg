@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="DeepReader logo">
+  <defs>
+    <linearGradient id="bg" x1="32" x2="224" y1="24" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7fb8ff" />
+      <stop offset="1" stop-color="#3c7ff2" />
+    </linearGradient>
+    <linearGradient id="page" x1="76" x2="182" y1="60" y2="188" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.98" />
+      <stop offset="1" stop-color="#dceaff" stop-opacity="0.9" />
+    </linearGradient>
+  </defs>
+  <rect width="208" height="208" x="24" y="24" rx="46" fill="url(#bg)" />
+  <path fill="url(#page)" d="M77 63c0-11 8-19 19-20l69-6c13-1 24 9 24 22v109c0 12-9 22-21 23l-71 6c-12 1-22-9-22-21V63Z" />
+  <path fill="#ffffff" fill-opacity="0.68" d="M67 73c0-11 8-19 19-20l69-6c13-1 24 9 24 22v109c0 5-2 9-4 13l16-1c12-1 21-11 21-23V59c0-13-11-23-24-22l-69 6c-10 1-18 9-19 20v110c0 6 2 11 5 15l-20 1c-12 1-22-9-22-21V73Z" />
+  <rect width="60" height="10" x="95" y="87" rx="5" fill="#ffffff" fill-opacity="0.86" />
+  <rect width="74" height="10" x="95" y="116" rx="5" fill="#ffffff" fill-opacity="0.82" />
+  <rect width="74" height="10" x="95" y="145" rx="5" fill="#ffffff" fill-opacity="0.78" />
+  <rect width="44" height="10" x="95" y="174" rx="5" fill="#ffffff" fill-opacity="0.74" />
+</svg>

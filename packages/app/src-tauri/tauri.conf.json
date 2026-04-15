@@ -1,0 +1,156 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "deepreader",
+  "version": "0.2.0",
+  "identifier": "com.deepreader.app",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "zoomHotkeysEnabled": true,
+        "label": "main",
+        "title": "DeepReader",
+        "width": 1440,
+        "minWidth": 960,
+        "minHeight": 720,
+        "height": 900,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true,
+        "hiddenTitle": true,
+        "transparent": true,
+        "trafficLightPosition": {
+          "x": 12,
+          "y": 16
+        },
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "windowEffects": {
+          "effects": [
+            "fullScreenUI",
+            "mica",
+            "tabbed",
+            "blur",
+            "acrylic"
+          ],
+          "state": "active",
+          "radius": 8
+        },
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "dangerousDisableAssetCspModification": true,
+      "csp": {
+        "script-src": [
+          "'self'",
+          "asset://localhost",
+          "'unsafe-inline'",
+          "'unsafe-eval'"
+        ],
+        "style-src": [
+          "'self'",
+          "asset://localhost",
+          "data:",
+          "blob:",
+          "'unsafe-inline'",
+          "https:",
+          "http:"
+        ],
+        "media-src": [
+          "'self'",
+          "asset://localhost",
+          "data:",
+          "blob:",
+          "https:",
+          "http:"
+        ],
+        "frame-src": [
+          "'self'",
+          "data:",
+          "blob:",
+          "https:",
+          "http:"
+        ],
+        "child-src": [
+          "'self'",
+          "data:",
+          "blob:",
+          "https:",
+          "http:"
+        ],
+        "default-src": [
+          "'self'",
+          "asset://localhost",
+          "ipc://localhost",
+          "data:",
+          "blob:"
+        ],
+        "img-src": [
+          "'self'",
+          "asset://localhost",
+          "data:",
+          "blob:",
+          "https:",
+          "http:"
+        ],
+        "font-src": [
+          "'self'",
+          "asset://localhost",
+          "data:",
+          "https:",
+          "http:"
+        ],
+        "connect-src": [
+          "'self'",
+          "asset://localhost",
+          "ipc://localhost",
+          "data:",
+          "blob:",
+          "https:",
+          "http:"
+        ]
+      },
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "**"
+        ]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "createUpdaterArtifacts": false,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "externalBin": [
+      "binaries/woff2_compress"
+    ],
+    "resources": [
+      "resources/fonts/*"
+    ],
+    "macOS": {}
+  },
+  "plugins": {
+    "updater": {
+      "active": false,
+      "endpoints": [
+        "https://github.com/AlphaMao1/deepreader/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZFNTAwRUM3NDVDQTVGMjkKUldRcFg4cEZ4dzVRL28wSWZ0S3FZdEVkNlFCTUlaYlRaR2ZyOWJoQTNRNm9EdXF5cnhXc1IwU3QK"
+    }
+  }
+}

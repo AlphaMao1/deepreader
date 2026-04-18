@@ -1,7 +1,7 @@
 {
   "name": "tauri-app-workspace",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.2",
   "type": "module",
   "scripts": {
     "dev": "cd packages/app && pnpm tauri dev",

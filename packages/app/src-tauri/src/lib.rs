@@ -53,7 +53,6 @@ use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -79,34 +78,7 @@ pub fn run() {
                     }
                 }
             }
-            
-            // Check for updates on startup
-            #[cfg(not(debug_assertions))]
-            {
-                let handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    use tauri_plugin_updater::UpdaterExt;
-                    match handle.updater() {
-                        Ok(updater) => match updater.check().await {
-                            Ok(Some(update)) => {
-                                if let Err(e) = update.download_and_install(|_, _| {}, || {}).await {
-                                    log::error!("Failed to install update: {}", e);
-                                }
-                            }
-                            Ok(None) => {
-                                log::info!("No update available");
-                            }
-                            Err(e) => {
-                                log::error!("Failed to check for updates: {}", e);
-                            }
-                        },
-                        Err(e) => {
-                            log::error!("Failed to get updater: {}", e);
-                        }
-                    }
-                });
-            }
-            
+
             tauri::async_runtime::spawn(async move {
                 let pool = database::initialize(&app_handle)
                     .await

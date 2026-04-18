@@ -144,13 +144,5 @@
     ],
     "macOS": {}
   },
-  "plugins": {
-    "updater": {
-      "active": false,
-      "endpoints": [
-        "https://github.com/AlphaMao1/deepreader/releases/latest/download/latest.json"
-      ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZFNTAwRUM3NDVDQTVGMjkKUldRcFg4cEZ4dzVRL28wSWZ0S3FZdEVkNlFCTUlaYlRaR2ZyOWJoQTNRNm9EdXF5cnhXc1IwU3QK"
-    }
-  }
+  "plugins": {}
 }

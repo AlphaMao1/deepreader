@@ -17,16 +17,12 @@ import { getVersion } from "@tauri-apps/api/app";
 import { appDataDir } from "@tauri-apps/api/path";
 import { exists, mkdir } from "@tauri-apps/plugin-fs";
 import { openPath } from "@tauri-apps/plugin-opener";
-import { check } from "@tauri-apps/plugin-updater";
-import clsx from "clsx";
-import { Check, ChevronDownIcon, Copy, Eye, EyeOff, FolderOpen, RefreshCw, X } from "lucide-react";
+import { Check, ChevronDownIcon, Copy, Eye, EyeOff, FolderOpen, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
 
 export default function GeneralSettings() {
   const [dataPath, setDataPath] = useState("");
   const [isCopied, setIsCopied] = useState(false);
-  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [appVersion, setAppVersion] = useState("0.1.0");
   const [showTavilyApiKey, setShowTavilyApiKey] = useState(false);
 
@@ -41,8 +37,10 @@ export default function GeneralSettings() {
       providerName: string;
       modelName: string;
     }> = [];
+
     modelProviders.forEach((provider) => {
       if (!provider.active) return;
+
       provider.models.forEach((model) => {
         if (model.active) {
           models.push({
@@ -54,18 +52,20 @@ export default function GeneralSettings() {
         }
       });
     });
+
     return models;
   }, [modelProviders]);
 
   const themeModeOptions = [
-    { value: "auto" as ThemeMode, label: "系统" },
-    { value: "light" as ThemeMode, label: "亮色" },
-    { value: "dark" as ThemeMode, label: "暗色" },
+    { value: "auto" as ThemeMode, label: "跟随系统" },
+    { value: "light" as ThemeMode, label: "浅色" },
+    { value: "dark" as ThemeMode, label: "深色" },
   ];
 
   useEffect(() => {
     appDataDir().then(async (path) => {
       setDataPath(path);
+
       try {
         const appDataDirPath = await appDataDir();
         const directoryExists = await exists(appDataDirPath);
@@ -85,7 +85,7 @@ export default function GeneralSettings() {
     try {
       await openPath(dataPath);
     } catch (error) {
-      console.error("Failed to open in Finder:", error);
+      console.error("Failed to open data directory:", error);
     }
   };
 
@@ -99,42 +99,15 @@ export default function GeneralSettings() {
     }
   };
 
-  const handleCheckForUpdates = async () => {
-    setIsCheckingUpdate(true);
-    try {
-      const update = await check();
-      if (update) {
-        toast.success(`发现新版本 ${update.version}`, {
-          description: "正在下载更新...",
-          duration: 5000,
-        });
-        await update.downloadAndInstall();
-        toast.success("更新已下载", {
-          description: "请重启应用以完成更新",
-          duration: 10000,
-        });
-      } else {
-        toast.info("当前已是最新版本");
-      }
-    } catch (error) {
-      console.error("Check for updates failed:", error);
-      toast.error("检查更新失败", {
-        description: error instanceof Error ? error.message : "未知错误",
-      });
-    } finally {
-      setIsCheckingUpdate(false);
-    }
-  };
-
   const handleThemeModeChange = (mode: ThemeMode) => {
     setThemeMode(mode);
   };
 
   const getCurrentThemeModeLabel = () => {
-    return themeModeOptions.find((option) => option.value === themeMode)?.label || "系统";
+    return themeModeOptions.find((option) => option.value === themeMode)?.label || "跟随系统";
   };
 
-  const handleSelectMemoryModel = (model: { modelId: string; providerId: string; providerName: string; modelName: string }) => {
+  const handleSelectMemoryModel = (model: SelectedModel & { modelName: string }) => {
     setMemoryExtractionModel({
       modelId: model.modelId,
       providerId: model.providerId,
@@ -151,36 +124,21 @@ export default function GeneralSettings() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <span className="text dark:text-neutral-200">应用版本</span>
-            <p className=" text-neutral-600 text-xs dark:text-neutral-400">v{appVersion}</p>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text dark:text-neutral-200">检查更新</span>
-              <p className="mt-2 text-neutral-600 text-xs dark:text-neutral-400">检查是否有新版本可用</p>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleCheckForUpdates}
-              disabled={isCheckingUpdate}
-              className="gap-2"
-            >
-              <RefreshCw className={clsx("size-4", isCheckingUpdate && "animate-spin")} />
-              {isCheckingUpdate ? "检查中..." : "检查更新"}
-            </Button>
+            <p className="text-neutral-600 text-xs dark:text-neutral-400">v{appVersion}</p>
           </div>
         </div>
       </section>
 
       <section className="rounded-lg bg-muted/80 p-4">
         <h2 className="text mb-4 dark:text-neutral-200">外观</h2>
+
         <div className="space-y-4">
           <div className="flex items-start justify-between">
             <div>
-              <span className="text dark:text-neutral-200">明暗模式</span>
-              <p className="mt-2 text-neutral-600 text-xs dark:text-neutral-400">选择明暗模式偏好</p>
+              <span className="text dark:text-neutral-200">主题模式</span>
+              <p className="mt-2 text-neutral-600 text-xs dark:text-neutral-400">选择你偏好的显示主题</p>
             </div>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" variant="outline" className="w-32 justify-between">
@@ -190,11 +148,7 @@ export default function GeneralSettings() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-32">
                 {themeModeOptions.map((option) => (
-                  <DropdownMenuItem
-                    key={option.value}
-                    onClick={() => handleThemeModeChange(option.value)}
-                    className={clsx("my-0.5", themeMode === option.value ? "bg-accent" : "")}
-                  >
+                  <DropdownMenuItem key={option.value} onClick={() => handleThemeModeChange(option.value)}>
                     {option.label}
                   </DropdownMenuItem>
                 ))}
@@ -216,8 +170,8 @@ export default function GeneralSettings() {
 
           <div className="flex items-center justify-between">
             <div>
-              <span className="text dark:text-neutral-200">对调侧边栏</span>
-              <p className="mt-2 text-neutral-600 text-xs dark:text-neutral-400">将聊天和笔记侧边栏位置对调</p>
+              <span className="text dark:text-neutral-200">交换侧边栏</span>
+              <p className="mt-2 text-neutral-600 text-xs dark:text-neutral-400">调整聊天和笔记侧边栏的位置</p>
             </div>
             <Checkbox
               checked={swapSidebars}
@@ -234,7 +188,7 @@ export default function GeneralSettings() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <span className="text-sm dark:text-neutral-200">应用数据</span>
+              <span className="text-sm dark:text-neutral-200">应用数据目录</span>
               <div className="mt-2 flex items-center gap-2">
                 <span className="rounded bg-background px-2 py-1 text-sm dark:bg-neutral-700 dark:text-neutral-300">
                   {dataPath}
@@ -278,7 +232,7 @@ export default function GeneralSettings() {
             </Button>
           </div>
           <p className="text-neutral-500 text-xs dark:text-neutral-400">
-            用于启用 AI 的 Tavily 联网检索能力，只有配置后才会注册 `webSearch` 工具。
+            用于启用 AI 的 Tavily 联网搜索能力。只有配置后才会注册 `webSearch` 工具。
           </p>
         </div>
       </section>
@@ -290,7 +244,7 @@ export default function GeneralSettings() {
           <div>
             <Label className="text-sm dark:text-neutral-200">提取模型</Label>
             <p className="mt-1 text-neutral-500 text-xs dark:text-neutral-400">
-              用于后台自动提取对话中的持久化记忆。推荐选择轻量快速的模型（如 Gemini Flash、DeepSeek Chat）以降低成本。
+              用于后台自动提取对话中的持久化记忆。建议使用轻量、快速、成本较低的模型。
             </p>
           </div>
 
@@ -299,9 +253,7 @@ export default function GeneralSettings() {
               <DropdownMenuTrigger asChild>
                 <Button size="sm" variant="outline" className="min-w-[200px] justify-between gap-2">
                   <span className="truncate text-xs">
-                    {memoryExtractionModel
-                      ? `${memoryExtractionModel.modelName}`
-                      : "未配置（记忆提取已禁用）"}
+                    {memoryExtractionModel ? `${memoryExtractionModel.modelName}` : "未配置（自动记忆提取已关闭）"}
                   </span>
                   <ChevronDownIcon className="h-3 w-3 flex-shrink-0" />
                 </Button>
@@ -310,15 +262,16 @@ export default function GeneralSettings() {
                 <div className="max-h-60 overflow-y-auto">
                   {availableModels.length === 0 ? (
                     <div className="p-3 text-center text-muted-foreground text-xs dark:text-neutral-400">
-                      请先在「模型提供商」中配置模型
+                      请先在“模型提供商”中配置模型
                     </div>
                   ) : (
                     (() => {
                       const grouped: Record<string, typeof availableModels> = {};
-                      availableModels.forEach((m) => {
-                        if (!grouped[m.providerId]) grouped[m.providerId] = [];
-                        grouped[m.providerId].push(m);
+                      availableModels.forEach((model) => {
+                        if (!grouped[model.providerId]) grouped[model.providerId] = [];
+                        grouped[model.providerId].push(model);
                       });
+
                       return Object.entries(grouped).map(([providerId, models]) => (
                         <div key={providerId}>
                           <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs dark:text-neutral-400">
@@ -328,6 +281,7 @@ export default function GeneralSettings() {
                             const isSelected =
                               memoryExtractionModel?.providerId === model.providerId &&
                               memoryExtractionModel?.modelId === model.modelId;
+
                             return (
                               <DropdownMenuItem
                                 key={`${model.providerId}-${model.modelId}`}
@@ -362,7 +316,8 @@ export default function GeneralSettings() {
           </div>
 
           <p className="text-neutral-500 text-xs dark:text-neutral-400">
-            每 5 轮对话自动触发一次记忆提取。不配置此模型则不会自动提取，但 AI 仍可通过 saveMemory 工具手动保存记忆。
+            每 5 轮对话自动触发一次记忆提取。不配置该模型时不会自动提取，但 AI 仍可通过 `saveMemory`
+            工具手动保存记忆。
           </p>
         </div>
       </section>

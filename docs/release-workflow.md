@@ -1,226 +1,130 @@
-# 发布工作流程
+# 发布工作流
 
-本文档说明如何发布 DeepReader 的新版本。
+本文档说明当前 DeepReader 的实际发布流程。
+
+## 当前发布策略
+
+DeepReader 目前采用 **手动下载安装包升级** 的策略。
+
+这意味着：
+
+- GitHub Actions 会自动构建并上传安装包
+- GitHub Release 需要检查后再正式发布
+- 当前版本 **不提供应用内自动更新**
+- 用户升级时，需要前往 Releases 页面重新下载安装包
 
 ## 前置要求
 
-1. ✅ GitHub Actions 配置完成
-2. ✅ `TAURI_SIGNING_PRIVATE_KEY` 与 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 已设置在 GitHub Secrets
-3. ✅ 有仓库的 push 权限
+1. GitHub Actions 配置完成
+2. 已具备仓库的 push 权限
+3. 本次改动已经在本地验证通过
 
----
+## 标准发布流程
 
-## 完整发布流程
+### 1. 更新版本号
 
-### 第一步：准备发布
+确认以下版本号已经同步：
+
+- `package.json`
+- `packages/app/package.json`
+- `packages/app/src-tauri/tauri.conf.json`
+- `packages/app/src-tauri/Cargo.toml`
+
+### 2. 提交代码并推送
 
 ```bash
-cd /path/to/deepreader
-
-# 1. 修改版本号
-# 编辑 packages/app/src-tauri/tauri.conf.json
-# 将 "version" 改为目标版本号
-
-# 2. 查看自上次发布以来的改动（可选）
-git log --oneline v0.2.0..HEAD
-
-# 3. 提交版本变更
 git add .
-git commit -m "chore: bump version to x.x.x"
-
-# 4. 创建并推送 tag
-git tag -a vx.x.x -m "Release vx.x.x"
+git commit -m "chore: prepare release vx.x.x"
 git push origin main
+```
+
+### 3. 创建并推送 tag
+
+```bash
+git tag -a vx.x.x -m "Release vx.x.x"
 git push origin vx.x.x
 ```
 
----
+### 4. 等待 GitHub Actions 构建
 
-### 第二步：GitHub Actions 自动构建
+当前工作流会在 Windows runner 上自动完成：
 
-推送 tag 后，GitHub Actions 会：
-- ✅ 构建 macOS (Intel + Apple Silicon)
-- ✅ 构建 Windows
-- ✅ 生成安装包
-- ✅ 生成 `latest.json`（用于自动更新）
-- ✅ 创建 Draft Release（草稿状态）
+- 安装依赖
+- 构建桌面应用
+- 生成 Release 资产
+- 创建 Draft Release
 
-⏱️ 大约需要 15-30 分钟
+查看构建状态：
 
-**查看构建进度**：
-```
-https://github.com/AlphaMao1/deepreader/actions
-```
+`https://github.com/AlphaMao1/deepreader/actions`
 
----
+### 5. 检查 Draft Release
 
-### 第三步：编写并发布 Release Notes
+进入 Releases 页面，确认：
 
-#### 3.1 进入 Releases 页面
+- Release 标题正确
+- 版本号正确
+- 安装包已上传
+- Release 说明已经更新
 
-```
-https://github.com/AlphaMao1/deepreader/releases
-```
+发布页面：
 
-#### 3.2 编辑 Draft Release
+`https://github.com/AlphaMao1/deepreader/releases`
 
-点击 Draft Release 的 "Edit" 按钮
+### 6. 发布正式 Release
 
-#### 3.3 编写 Release Notes（Markdown 格式）
+确认无误后，将 Draft Release 发布为正式版本。
 
-**基础模板**：
-```markdown
-## ✨ 新功能
-
-- 功能1描述
-- 功能2描述
-
-## 🐛 Bug 修复
-
-- 修复的问题1
-- 修复的问题2
-
-## 🔧 优化
-
-- 优化项1
-- 优化项2
-
-## 📦 下载说明
-
-选择适合你系统的版本：
-
-- **macOS Apple Silicon (M1/M2/M3)**: `DeepReader_x.x.x_aarch64.dmg`
-- **macOS Intel**: `DeepReader_x.x.x_x64.dmg`
-- **Windows**: `DeepReader_x.x.x_x64_setup.exe`
-
-**首次安装用户**：直接下载安装即可  
-**已安装用户**：应用会自动检测并提示更新
-```
-
-#### 3.4 检查附件
-
-确认以下文件已上传：
-- ✅ macOS Apple Silicon 安装包 (`.dmg`)
-- ✅ macOS Intel 安装包 (`.dmg`)
-- ✅ Windows 安装包 (`.exe`)
-- ✅ `latest.json` 文件（关键！）
-
-#### 3.5 发布
-
-点击 **"Publish release"** 按钮
-
----
-
-### 第四步：验证自动更新（可选）
-
-1. 在本地安装旧版本
-2. 启动应用
-3. 应该会检测到新版本
-4. 自动下载并提示安装
-
----
-
-## Release Notes 技巧
-
-### Markdown 功能
-
-- **引用 Issue/PR**：使用 `#123` 自动转为链接
-- **表情符号**：直接使用 emoji 或 `:emoji:` 格式
-- **代码块**：使用三个反引号
-- **图片**：`![alt](url)`
-- **粗体**：`**文字**`
-- **列表**：`-` 或 `1.`
-
-### 示例
+## Release Notes 建议模板
 
 ```markdown
-## 🎉 重大更新
+## Summary
+- 简述本次版本的核心变化
+- 如果只是品牌、文案、素材更新，也直接写清楚
 
-本次版本带来了全新的 AI 记忆系统！
-
-### 新功能
-- ✨ AI 记忆系统：跨 session 持续积累
-- 🚀 意图诊断提示词
-
-### 改进
-- 📦 优化向量模型配置流程
-- ⚡ 启动速度提升
-
-### 截图
-
-![新界面](screenshot-url)
-
-### 注意事项
-
-> ⚠️ 首次安装需要配置 AI 模型
+## Notes
+- 说明是否包含功能行为变化
+- 说明用户是否需要重新下载安装包升级
 ```
 
----
+## 给用户的下载说明
+
+建议在 Release Notes 里明确写清楚：
+
+- 这是哪个版本
+- 用户应下载哪个安装包
+- 当前版本没有应用内自动更新
+- 如需升级，请重新下载安装包
 
 ## 常见问题
 
-### Q: 构建失败怎么办？
+### Q: 为什么用户没有自动更新提示？
 
-1. 查看 GitHub Actions 日志
-2. 检查版本号格式是否正确
-3. 确认所有依赖都已提交
+因为当前版本没有启用应用内自动更新，这是当前的产品策略，不是构建异常。
 
-### Q: 用户不能自动更新？
+### Q: 用户应该怎么升级？
 
-检查：
-- ✅ `latest.json` 是否存在
-- ✅ 版本号是否大于当前版本
-- ✅ Release 是否已发布（不是 Draft）
+去 GitHub Releases 页面下载新版安装包，重新安装即可。
 
-### Q: 如何删除错误的 Release？
+### Q: Release 是 Draft 状态能给用户用吗？
 
-1. 进入 Releases 页面
-2. 点击对应 Release
-3. 点击 "Delete" 按钮
-4. 删除对应的 Git tag：
-   ```bash
-   git tag -d vx.x.x
-   git push origin :refs/tags/vx.x.x
-   ```
+不建议。应在确认资产和说明都正确后，再发布为正式 Release。
 
----
+## 发布检查清单
 
-## 版本号规范
-
-遵循 [语义化版本](https://semver.org/lang/zh-CN/)：
-
-- **Major (x.0.0)**: 不兼容的 API 变更
-- **Minor (0.x.0)**: 新功能，向后兼容
-- **Patch (0.0.x)**: Bug 修复，向后兼容
-
-**示例**：
-- `0.2.0` → `0.2.1`: Bug 修复
-- `0.2.0` → `0.3.0`: 新功能
-- `0.9.0` → `1.0.0`: 重大变更
-
----
-
-## 快速检查清单
-
-发布前检查：
-
-- [ ] 版本号已更新（tauri.conf.json + package.json + Cargo.toml）
-- [ ] 所有改动已提交
+- [ ] 版本号已同步
+- [ ] 本地构建通过
+- [ ] 代码已提交并推送
 - [ ] tag 已创建并推送
 - [ ] GitHub Actions 构建成功
-- [ ] Release Notes 已编写
-- [ ] 所有安装包都已上传
-- [ ] `latest.json` 存在
-- [ ] Release 已发布（不是 Draft）
-
----
+- [ ] Draft Release 资产齐全
+- [ ] Release Notes 已更新
+- [ ] Release 已正式发布
 
 ## 相关文件
 
-- `.github/workflows/release.yml`: GitHub Actions 配置
-- `packages/app/src-tauri/tauri.conf.json`: 版本号配置
-- `packages/app/src-tauri/src/lib.rs`: 自动更新逻辑
-
----
-
-更新日期：2026-04-14
+- `.github/workflows/release.yml`
+- `packages/app/src-tauri/tauri.conf.json`
+- `package.json`
+- `packages/app/package.json`
+- `packages/app/src-tauri/Cargo.toml`

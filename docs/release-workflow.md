@@ -47,7 +47,12 @@ git push origin vx.x.x
 
 ### 4. 等待 GitHub Actions 构建
 
-当前工作流会在 Windows runner 上自动完成：
+当前工作流会自动在以下 runner 上完成构建：
+
+- Windows runner：生成 Windows 安装包
+- macOS runner（Apple Silicon / Intel）：生成 macOS DMG 与 `.app.tar.gz`
+- 若未配置苹果签名证书，macOS 构建会自动回退到 ad-hoc 签名，仅用于测试分发
+- 若已配置 Apple Developer 证书与公证凭据，macOS 构建可产出正式签名版本
 
 - 安装依赖
 - 构建桌面应用

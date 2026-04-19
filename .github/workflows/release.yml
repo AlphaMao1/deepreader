@@ -10,7 +10,17 @@ jobs:
   release:
     permissions:
       contents: write
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin
+          - platform: windows-latest
+            args: ""
+    runs-on: ${{ matrix.platform }}
 
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +38,8 @@ jobs:
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -40,11 +52,49 @@ jobs:
       - name: Sync version
         run: |
           node -e "const fs=require('fs');const path='packages/app/src-tauri/tauri.conf.json';const data=JSON.parse(fs.readFileSync(path));data.version='${{ github.ref_name }}'.replace(/^v/,'');fs.writeFileSync(path,JSON.stringify(data,null,2));"
+
+      - name: Prepare macOS signing
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          if [[ -n "$APPLE_CERTIFICATE" && -n "$APPLE_CERTIFICATE_PASSWORD" ]]; then
+            (echo "$APPLE_CERTIFICATE" | base64 --decode 2>/dev/null || echo "$APPLE_CERTIFICATE" | base64 -D) > certificate.p12
+            security create-keychain -p "" build.keychain
+            security default-keychain -s build.keychain
+            security unlock-keychain -p "" build.keychain
+            security set-keychain-settings -t 3600 -u build.keychain
+            security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
+            security find-identity -v -p codesigning build.keychain
+            security list-keychains -d user -s build.keychain
+            echo "MACOS_SIGNING_MODE=developer-id" >> "$GITHUB_ENV"
+          else
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            echo "MACOS_SIGNING_MODE=ad-hoc" >> "$GITHUB_ENV"
+          fi
+
+      - name: Remove pre-existing sidecar signatures
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        run: |
+          shopt -s nullglob
+          for binary in packages/app/src-tauri/binaries/woff2_compress*; do
+            codesign --remove-signature "$binary" || true
+          done
       
       - name: Build and Release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           TAURI_SKIP_SIDECAR_SIGNATURE_CHECK: true
         with:
           projectPath: './packages/app'
@@ -54,3 +104,4 @@ jobs:
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: false
+          args: ${{ matrix.args }}

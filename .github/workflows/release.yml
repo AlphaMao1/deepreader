@@ -14,13 +14,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
+          - runner: macos-latest
+            macos: true
+            target: aarch64-apple-darwin
             args: --target aarch64-apple-darwin
-          - platform: macos-latest
+          - runner: macos-15-intel
+            macos: true
+            target: x86_64-apple-darwin
             args: --target x86_64-apple-darwin
-          - platform: windows-latest
+          - runner: windows-latest
+            macos: false
+            target: ""
             args: ""
-    runs-on: ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +45,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.macos && matrix.target || '' }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -54,7 +60,7 @@ jobs:
           node -e "const fs=require('fs');const path='packages/app/src-tauri/tauri.conf.json';const data=JSON.parse(fs.readFileSync(path));data.version='${{ github.ref_name }}'.replace(/^v/,'');fs.writeFileSync(path,JSON.stringify(data,null,2));"
 
       - name: Prepare macOS signing
-        if: matrix.platform == 'macos-latest'
+        if: matrix.macos
         shell: bash
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -77,7 +83,7 @@ jobs:
           fi
 
       - name: Remove pre-existing sidecar signatures
-        if: matrix.platform == 'macos-latest'
+        if: matrix.macos
         shell: bash
         run: |
           shopt -s nullglob
@@ -86,7 +92,7 @@ jobs:
           done
       
       - name: Build and Release
-        if: matrix.platform == 'windows-latest'
+        if: matrix.runner == 'windows-latest'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -102,7 +108,7 @@ jobs:
           args: ${{ matrix.args }}
 
       - name: Build and Release (macOS ad-hoc)
-        if: matrix.platform == 'macos-latest' && env.HAS_APPLE_CERTIFICATE != 'true'
+        if: matrix.macos && env.HAS_APPLE_CERTIFICATE != 'true'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -119,7 +125,7 @@ jobs:
           args: ${{ matrix.args }}
 
       - name: Build and Release (macOS signed)
-        if: matrix.platform == 'macos-latest' && env.HAS_APPLE_CERTIFICATE == 'true'
+        if: matrix.macos && env.HAS_APPLE_CERTIFICATE == 'true'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

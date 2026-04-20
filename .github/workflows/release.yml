@@ -59,6 +59,9 @@ jobs:
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           if [[ -n "$APPLE_CERTIFICATE" && -n "$APPLE_CERTIFICATE_PASSWORD" ]]; then
             (echo "$APPLE_CERTIFICATE" | base64 --decode 2>/dev/null || echo "$APPLE_CERTIFICATE" | base64 -D) > certificate.p12
@@ -71,6 +74,17 @@ jobs:
             security find-identity -v -p codesigning build.keychain
             security list-keychains -d user -s build.keychain
             echo "MACOS_SIGNING_MODE=developer-id" >> "$GITHUB_ENV"
+            echo "APPLE_CERTIFICATE=$APPLE_CERTIFICATE" >> "$GITHUB_ENV"
+            echo "APPLE_CERTIFICATE_PASSWORD=$APPLE_CERTIFICATE_PASSWORD" >> "$GITHUB_ENV"
+            if [[ -n "$APPLE_ID" ]]; then
+              echo "APPLE_ID=$APPLE_ID" >> "$GITHUB_ENV"
+            fi
+            if [[ -n "$APPLE_PASSWORD" ]]; then
+              echo "APPLE_PASSWORD=$APPLE_PASSWORD" >> "$GITHUB_ENV"
+            fi
+            if [[ -n "$APPLE_TEAM_ID" ]]; then
+              echo "APPLE_TEAM_ID=$APPLE_TEAM_ID" >> "$GITHUB_ENV"
+            fi
           else
             echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
             echo "MACOS_SIGNING_MODE=ad-hoc" >> "$GITHUB_ENV"
@@ -89,12 +103,12 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ env.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ env.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ env.APPLE_ID }}
+          APPLE_PASSWORD: ${{ env.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ env.APPLE_TEAM_ID }}
           TAURI_SKIP_SIDECAR_SIGNATURE_CHECK: true
         with:
           projectPath: './packages/app'

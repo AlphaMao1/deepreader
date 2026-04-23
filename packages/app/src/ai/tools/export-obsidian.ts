@@ -46,7 +46,7 @@ export const exportToObsidianTool = tool({
     if (!vaultPath?.trim()) {
       return {
         success: false,
-        error: "用户未配置 Obsidian 知识库路径。请提示用户在「设置」中配置 Obsidian 知识库目录。",
+        error: "用户未配置 Obsidian 知识库路径。请提示用户在「设置 → 常规 → Obsidian 知识库」中选择知识库目录。",
       };
     }
 

@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { useExportSettingsStore } from "@/store/export-settings-store";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +17,7 @@ import type { ThemeMode } from "@/styles/themes";
 import { getVersion } from "@tauri-apps/api/app";
 import { appDataDir } from "@tauri-apps/api/path";
 import { exists, mkdir } from "@tauri-apps/plugin-fs";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { Check, ChevronDownIcon, Copy, Eye, EyeOff, FolderOpen, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -27,8 +29,9 @@ export default function GeneralSettings() {
   const [showTavilyApiKey, setShowTavilyApiKey] = useState(false);
 
   const { themeMode, autoScroll, swapSidebars, setThemeMode, setAutoScroll, setSwapSidebars } = useThemeStore();
-  const { settings, setTavilyApiKey } = useAppSettingsStore();
+  const { settings, setSettings, setTavilyApiKey } = useAppSettingsStore();
   const { modelProviders, memoryExtractionModel, setMemoryExtractionModel } = useProviderStore();
+  const { obsidianVaultPath, setObsidianVaultPath } = useExportSettingsStore();
 
   const availableModels = useMemo(() => {
     const models: Array<{
@@ -206,6 +209,54 @@ export default function GeneralSettings() {
       </section>
 
       <section className="rounded-lg bg-muted/80 p-4">
+        <h2 className="text mb-4 dark:text-neutral-200">Obsidian 知识库</h2>
+
+        <div className="space-y-2">
+          <span className="text-sm dark:text-neutral-200">知识库路径</span>
+          <div className="mt-2 flex items-center gap-2">
+            <Input
+              value={obsidianVaultPath}
+              onChange={(event) => setObsidianVaultPath(event.target.value)}
+              placeholder="选择你的 Obsidian Vault 目录"
+              className="h-8 flex-1 font-mono text-sm"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 shrink-0"
+              onClick={async () => {
+                const result = await openDialog({
+                  directory: true,
+                  multiple: false,
+                  title: "选择 Obsidian 知识库目录",
+                });
+                if (typeof result === "string" && result.trim()) {
+                  setObsidianVaultPath(result);
+                }
+              }}
+            >
+              <FolderOpen className="mr-1 h-3 w-3" />
+              选择
+            </Button>
+            {obsidianVaultPath && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 shrink-0 p-0"
+                onClick={() => setObsidianVaultPath("")}
+                title="清除路径"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+          <p className="text-neutral-500 text-xs dark:text-neutral-400">
+            配置后，AI 可通过工具直接将笔记保存到此目录。划线整理生成的摘录也会自动保存到这里。
+          </p>
+        </div>
+      </section>
+
+      <section className="rounded-lg bg-muted/80 p-4">
         <h2 className="text mb-4 dark:text-neutral-200">联网搜索</h2>
 
         <div className="space-y-2">
@@ -319,6 +370,31 @@ export default function GeneralSettings() {
             每 5 轮对话自动触发一次记忆提取。不配置该模型时不会自动提取，但 AI 仍可通过 `saveMemory`
             工具手动保存记忆。
           </p>
+        </div>
+      </section>
+
+      <section className="rounded-lg bg-muted/80 p-4">
+        <h2 className="text mb-4 dark:text-neutral-200">隐私</h2>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text dark:text-neutral-200">匿名使用统计</span>
+              <p className="mt-2 text-neutral-600 text-xs dark:text-neutral-400">
+                帮助我们改进产品体验，不含任何个人数据
+              </p>
+            </div>
+            <Checkbox
+              checked={settings.telemetryEnabled ?? true}
+              onCheckedChange={(checked) =>
+                setSettings({
+                  ...settings,
+                  telemetryEnabled: checked === true,
+                })
+              }
+              className="data-[state=checked]:border-primary data-[state=checked]:bg-primary"
+            />
+          </div>
         </div>
       </section>
     </div>

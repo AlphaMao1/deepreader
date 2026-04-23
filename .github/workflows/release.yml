@@ -90,7 +90,7 @@ jobs:
           for binary in packages/app/src-tauri/binaries/woff2_compress*; do
             codesign --remove-signature "$binary" || true
           done
-      
+
       - name: Build and Release
         if: matrix.runner == 'windows-latest'
         uses: tauri-apps/tauri-action@v0

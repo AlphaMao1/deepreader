@@ -3,7 +3,7 @@
  *
  * DIG-01/02/03: 批量整理划线的两阶段视图
  * Phase 1 - 选择阶段: 显示划线列表，支持手动勾选 + AI 精选
- * Phase 2 - 结果阶段: 展示 AI 生成的 Obsidian 摘录，支持保存
+ * Phase 2 - 结果阶段: 展示 AI 生成的 Obsidian 摘录（自动保存到 Obsidian）
  */
 import { Button } from "@/components/ui/button";
 import {
@@ -16,12 +16,10 @@ import { getBookById } from "@/services/book-service";
 import { getBookNotes } from "@/services/book-note-service";
 import { useExportSettingsStore } from "@/store/export-settings-store";
 import type { BookNote } from "@/types/book";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   ArrowLeft,
   BookMarked,
   CheckSquare,
-  FolderOpen,
   Loader2,
   Sparkles,
   Square,
@@ -59,10 +57,9 @@ export function DigestView({ bookId, bookTitle: propTitle, bookAuthor: propAutho
   const [isLoading, setIsLoading] = useState(true);
   const [isCurating, setIsCurating] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [generatedMarkdown, setGeneratedMarkdown] = useState("");
 
-  const { obsidianVaultPath, setObsidianVaultPath } = useExportSettingsStore();
+  const { obsidianVaultPath } = useExportSettingsStore();
 
   // 加载标注 + 书名（数据源：BookNote annotations，与左侧标注栏同源）
   useEffect(() => {
@@ -139,44 +136,29 @@ export function DigestView({ bookId, bookTitle: propTitle, bookAuthor: propAutho
       const markdown = await generateBookDigest(selected, { bookTitle, bookAuthor });
       setGeneratedMarkdown(markdown);
       setPhase("result");
+
+      // 自动保存到 Obsidian
+      const vaultPath = obsidianVaultPath.trim();
+      if (!vaultPath) {
+        toast.error("摘录已生成，但未保存：请在「设置 → 常规 → Obsidian 知识库」中配置路径", { duration: 8000 });
+      } else {
+        try {
+          const path = await exportDigestToObsidian(markdown, {
+            obsidianVaultPath: vaultPath,
+            bookTitle,
+            bookAuthor,
+          });
+          toast.success("摘录已保存到 Obsidian", { description: path, duration: 6000 });
+        } catch (saveError) {
+          toast.error(
+            `保存到 Obsidian 失败：${saveError instanceof Error ? saveError.message : String(saveError)}`,
+          );
+        }
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "生成失败，请重试");
     } finally {
       setIsGenerating(false);
-    }
-  };
-
-  // 选择 Obsidian 目录
-  const handlePickDirectory = async () => {
-    const result = await openDialog({
-      directory: true,
-      multiple: false,
-      title: "选择 Obsidian 知识库目录",
-    });
-    if (typeof result === "string" && result.trim()) {
-      setObsidianVaultPath(result);
-    }
-  };
-
-  // 保存到 Obsidian
-  const handleSave = async () => {
-    if (!obsidianVaultPath.trim()) {
-      toast.error("请先选择 Obsidian 知识库目录");
-      return;
-    }
-    if (!generatedMarkdown) return;
-    setIsSaving(true);
-    try {
-      const path = await exportDigestToObsidian(generatedMarkdown, {
-        obsidianVaultPath: obsidianVaultPath.trim(),
-        bookTitle,
-        bookAuthor,
-      });
-      toast.success("已保存到 Obsidian", { description: path, duration: 6000 });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "保存失败");
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -329,31 +311,20 @@ export function DigestView({ bookId, bookTitle: propTitle, bookAuthor: propAutho
         </pre>
       </div>
 
-      {/* Save to Obsidian */}
-      <div className="border-t bg-muted/30 px-4 py-3">
-        <div className="flex items-center gap-2">
-          {obsidianVaultPath ? (
-            <span className="flex-1 truncate text-muted-foreground text-xs" title={obsidianVaultPath}>
-              {obsidianVaultPath}
-            </span>
-          ) : (
-            <span className="flex-1 text-muted-foreground text-xs">尚未选择 Obsidian 知识库</span>
-          )}
-          <Button variant="outline" size="sm" className="h-7 shrink-0 text-xs" onClick={handlePickDirectory}>
-            <FolderOpen className="mr-1 h-3.5 w-3.5" />
-            选择目录
-          </Button>
-          <Button
-            size="sm"
-            className="h-7 shrink-0 text-xs"
-            onClick={handleSave}
-            disabled={!obsidianVaultPath.trim() || isSaving}
-          >
-            {isSaving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-            保存到 Obsidian
-          </Button>
+      {/* Obsidian 保存状态提示 */}
+      {obsidianVaultPath ? (
+        <div className="border-t bg-muted/30 px-4 py-2">
+          <span className="truncate text-muted-foreground text-xs" title={obsidianVaultPath}>
+            已保存到：{obsidianVaultPath}
+          </span>
         </div>
-      </div>
+      ) : (
+        <div className="border-t bg-destructive/10 px-4 py-2">
+          <span className="text-destructive text-xs">
+            未保存 — 请在「设置 → 常规 → Obsidian 知识库」中配置路径
+          </span>
+        </div>
+      )}
     </div>
   );
 }

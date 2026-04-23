@@ -21,7 +21,6 @@ export interface ReadSettings {
 
 export interface SystemSettings {
   version: number;
-  localBooksDir: string;
   tavilyApiKey: string;
 
   keepLogin: boolean;

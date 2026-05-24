@@ -1,4 +1,5 @@
 use super::models::*;
+use crate::core::sync::run_schema_migrations;
 use sqlx::{Row, SqlitePool};
 use std::fs;
 use tauri::{AppHandle, Manager};
@@ -23,11 +24,17 @@ pub async fn save_book(app_handle: AppHandle, data: BookUploadData) -> Result<Si
 
     let epub_filename = format!("book.{}", data.format.to_lowercase());
     let epub_path = book_dir.join(&epub_filename);
+    if epub_path.exists() {
+        fs::remove_file(&epub_path).map_err(|e| format!("删除旧书籍文件失败: {}", e))?;
+    }
     std::fs::rename(&data.temp_file_path, &epub_path)
         .map_err(|e| format!("移动书籍文件失败: {}", e))?;
 
     let cover_path = if let Some(cover_temp_path) = &data.cover_temp_file_path {
         let cover_file = book_dir.join("cover.jpg");
+        if cover_file.exists() {
+            fs::remove_file(&cover_file).map_err(|e| format!("删除旧封面文件失败: {}", e))?;
+        }
         std::fs::rename(cover_temp_path, &cover_file)
             .map_err(|e| format!("移动封面文件失败: {}", e))?;
         Some(format!("books/{}/cover.jpg", data.id))
@@ -53,8 +60,20 @@ pub async fn save_book(app_handle: AppHandle, data: BookUploadData) -> Result<Si
         INSERT INTO books (
             id, title, author, format, file_path, cover_path,
             file_size, language, tags,
-            created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            created_at, updated_at, deleted_at, sync_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            title = excluded.title,
+            author = excluded.author,
+            format = excluded.format,
+            file_path = excluded.file_path,
+            cover_path = excluded.cover_path,
+            file_size = excluded.file_size,
+            language = excluded.language,
+            tags = excluded.tags,
+            updated_at = excluded.updated_at,
+            deleted_at = NULL,
+            sync_status = 'pending'
         "#,
     )
     .bind(&data.id)
@@ -68,6 +87,8 @@ pub async fn save_book(app_handle: AppHandle, data: BookUploadData) -> Result<Si
     .bind(None::<String>) // tags
     .bind(now)
     .bind(now)
+    .bind(None::<i64>)
+    .bind("pending")
     .execute(&mut *tx)
     .await
     .map_err(|e| format!("数据库插入失败: {}", e))?;
@@ -76,8 +97,17 @@ pub async fn save_book(app_handle: AppHandle, data: BookUploadData) -> Result<Si
         r#"
         INSERT INTO book_status (
             book_id, status, progress_current, progress_total, location,
-            metadata, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            metadata, created_at, updated_at, deleted_at, sync_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(book_id) DO UPDATE SET
+            status = excluded.status,
+            progress_current = excluded.progress_current,
+            progress_total = excluded.progress_total,
+            location = excluded.location,
+            metadata = excluded.metadata,
+            updated_at = excluded.updated_at,
+            deleted_at = NULL,
+            sync_status = 'pending'
         "#,
     )
     .bind(&data.id)
@@ -88,6 +118,8 @@ pub async fn save_book(app_handle: AppHandle, data: BookUploadData) -> Result<Si
     .bind(None::<String>)
     .bind(now)
     .bind(now)
+    .bind(None::<i64>)
+    .bind("pending")
     .execute(&mut *tx)
     .await
     .map_err(|e| format!("创建书籍状态失败: {}", e))?;
@@ -117,7 +149,7 @@ pub async fn get_books(
     let opts = options.unwrap_or_default();
 
     let mut query = String::from("SELECT * FROM books");
-    let mut conditions = Vec::new();
+    let mut conditions = vec!["deleted_at IS NULL".to_string()];
     let mut bind_values: Vec<String> = Vec::new();
 
     if let Some(search_query) = &opts.search_query {
@@ -192,7 +224,7 @@ pub async fn get_book_by_id(
 ) -> Result<Option<SimpleBook>, String> {
     let db_pool = get_db_pool(&app_handle).await?;
 
-    let row = sqlx::query("SELECT * FROM books WHERE id = ?")
+    let row = sqlx::query("SELECT * FROM books WHERE id = ? AND deleted_at IS NULL")
         .bind(&id)
         .fetch_optional(&db_pool)
         .await
@@ -218,7 +250,7 @@ pub async fn update_book(
         .unwrap_or_else(|| chrono::Utc::now().timestamp_millis());
 
     if let Some(title) = &update_data.title {
-        sqlx::query("UPDATE books SET title = ?, updated_at = ? WHERE id = ?")
+        sqlx::query("UPDATE books SET title = ?, updated_at = ?, sync_status = 'pending' WHERE id = ? AND deleted_at IS NULL")
             .bind(title)
             .bind(now)
             .bind(&id)
@@ -228,7 +260,7 @@ pub async fn update_book(
     }
 
     if let Some(author) = &update_data.author {
-        sqlx::query("UPDATE books SET author = ?, updated_at = ? WHERE id = ?")
+        sqlx::query("UPDATE books SET author = ?, updated_at = ?, sync_status = 'pending' WHERE id = ? AND deleted_at IS NULL")
             .bind(author)
             .bind(now)
             .bind(&id)
@@ -240,7 +272,7 @@ pub async fn update_book(
     if let Some(tags) = &update_data.tags {
         let tags_json =
             serde_json::to_string(tags).map_err(|e| format!("序列化标签失败: {}", e))?;
-        sqlx::query("UPDATE books SET tags = ?, updated_at = ? WHERE id = ?")
+        sqlx::query("UPDATE books SET tags = ?, updated_at = ?, sync_status = 'pending' WHERE id = ? AND deleted_at IS NULL")
             .bind(tags_json)
             .bind(now)
             .bind(&id)
@@ -250,7 +282,7 @@ pub async fn update_book(
     }
 
     if update_data.title.is_none() && update_data.author.is_none() && update_data.tags.is_none() {
-        sqlx::query("UPDATE books SET updated_at = ? WHERE id = ?")
+        sqlx::query("UPDATE books SET updated_at = ?, sync_status = 'pending' WHERE id = ? AND deleted_at IS NULL")
             .bind(now)
             .bind(&id)
             .execute(&db_pool)
@@ -266,27 +298,73 @@ pub async fn update_book(
 #[tauri::command]
 pub async fn delete_book(app_handle: AppHandle, id: String) -> Result<(), String> {
     let db_pool = get_db_pool(&app_handle).await?;
+    let now = chrono::Utc::now().timestamp_millis();
+    soft_delete_book_cascade(&db_pool, &id, now).await
+}
 
-    let app_data_dir = app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("获取应用目录失败: {}", e))?;
+async fn soft_delete_book_cascade(pool: &SqlitePool, id: &str, timestamp: i64) -> Result<(), String> {
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| format!("开启删除事务失败: {}", e))?;
 
-    let book_dir = app_data_dir.join("books").join(&id);
-    if book_dir.exists() {
-        std::fs::remove_dir_all(&book_dir).map_err(|e| format!("删除书籍文件失败: {}", e))?;
-    }
-
-    // 外键约束会自动删除相关的 book_status, reading_sessions 和 threads
-    let result = sqlx::query("DELETE FROM books WHERE id = ?")
-        .bind(&id)
-        .execute(&db_pool)
+    let result = sqlx::query(
+        "UPDATE books SET deleted_at = ?, updated_at = ?, sync_status = 'pending' WHERE id = ? AND deleted_at IS NULL",
+    )
+        .bind(timestamp)
+        .bind(timestamp)
+        .bind(id)
+        .execute(&mut *tx)
         .await
         .map_err(|e| format!("删除书籍失败: {}", e))?;
 
     if result.rows_affected() == 0 {
         return Err("书籍不存在".to_string());
     }
+
+    sqlx::query(
+        "UPDATE book_status SET deleted_at = ?, updated_at = ?, sync_status = 'pending' WHERE book_id = ? AND deleted_at IS NULL",
+    )
+    .bind(timestamp)
+    .bind(timestamp)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| format!("删除书籍状态失败: {}", e))?;
+
+    sqlx::query(
+        "UPDATE book_notes SET deleted_at = ?, updated_at = ?, sync_status = 'pending' WHERE book_id = ? AND deleted_at IS NULL",
+    )
+    .bind(timestamp)
+    .bind(timestamp)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| format!("删除书摘批注失败: {}", e))?;
+
+    sqlx::query(
+        "UPDATE notes SET deleted_at = ?, updated_at = ?, sync_status = 'pending' WHERE book_id = ? AND deleted_at IS NULL",
+    )
+    .bind(timestamp)
+    .bind(timestamp)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| format!("删除关联笔记失败: {}", e))?;
+
+    sqlx::query(
+        "UPDATE reading_sessions SET deleted_at = ?, updated_at = ?, sync_status = 'pending' WHERE book_id = ? AND deleted_at IS NULL",
+    )
+    .bind(timestamp)
+    .bind(timestamp)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| format!("删除阅读会话失败: {}", e))?;
+
+    tx.commit()
+        .await
+        .map_err(|e| format!("提交删除事务失败: {}", e))?;
 
     Ok(())
 }
@@ -298,7 +376,7 @@ pub async fn get_book_status(
 ) -> Result<Option<BookStatus>, String> {
     let db_pool = get_db_pool(&app_handle).await?;
 
-    let result = sqlx::query("SELECT * FROM book_status WHERE book_id = ?")
+    let result = sqlx::query("SELECT * FROM book_status WHERE book_id = ? AND deleted_at IS NULL")
         .bind(&book_id)
         .fetch_optional(&db_pool)
         .await
@@ -342,8 +420,8 @@ pub async fn update_book_status(
         r#"
         UPDATE book_status SET
             status = ?, progress_current = ?, progress_total = ?, location = ?,
-            last_read_at = ?, started_at = ?, completed_at = ?, metadata = ?, updated_at = ?
-        WHERE book_id = ?
+            last_read_at = ?, started_at = ?, completed_at = ?, metadata = ?, updated_at = ?, sync_status = 'pending'
+        WHERE book_id = ? AND deleted_at IS NULL
         "#,
     )
     .bind(&new_status)
@@ -385,9 +463,9 @@ pub async fn get_books_with_status(
         "SELECT b.*, s.book_id as status_book_id, s.status, s.progress_current, s.progress_total, 
          s.last_read_at, s.started_at, 
          s.completed_at, s.metadata, s.created_at as status_created_at, s.updated_at as status_updated_at 
-         FROM books b LEFT JOIN book_status s ON b.id = s.book_id"
+         FROM books b LEFT JOIN book_status s ON b.id = s.book_id AND s.deleted_at IS NULL"
     );
-    let mut conditions = Vec::new();
+    let mut conditions = vec!["b.deleted_at IS NULL"];
 
     if let Some(search_query) = &opts.search_query {
         if !search_query.trim().is_empty() {
@@ -512,8 +590,8 @@ pub async fn get_book_with_status_by_id(
     let query = "SELECT b.*, s.book_id as status_book_id, s.status, s.progress_current, s.progress_total, 
          s.location, s.last_read_at, s.started_at, 
          s.completed_at, s.metadata, s.created_at as status_created_at, s.updated_at as status_updated_at 
-         FROM books b LEFT JOIN book_status s ON b.id = s.book_id
-         WHERE b.id = ?";
+         FROM books b LEFT JOIN book_status s ON b.id = s.book_id AND s.deleted_at IS NULL
+         WHERE b.id = ? AND b.deleted_at IS NULL";
 
     let row = sqlx::query(query)
         .bind(&id)
@@ -567,9 +645,13 @@ async fn get_db_pool(app_handle: &AppHandle) -> Result<SqlitePool, String> {
     let db_path = app_data_dir.join("database").join("app.db");
     let db_url = format!("sqlite:{}", db_path.display());
 
-    SqlitePool::connect(&db_url)
+    let pool = SqlitePool::connect(&db_url)
         .await
-        .map_err(|e| format!("数据库连接失败: {}", e))
+        .map_err(|e| format!("数据库连接失败: {}", e))?;
+    run_schema_migrations(&pool)
+        .await
+        .map_err(|e| format!("数据库迁移失败: {}", e))?;
+    Ok(pool)
 }
 
 impl Default for BookQueryOptions {
@@ -581,6 +663,144 @@ impl Default for BookQueryOptions {
             tags: None,
             sort_by: None,
             sort_order: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::{sqlite::SqlitePoolOptions, Row};
+
+    async fn memory_pool() -> SqlitePool {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("create in-memory sqlite pool");
+
+        sqlx::query(
+            r#"
+            CREATE TABLE books (
+                id TEXT PRIMARY KEY NOT NULL,
+                title TEXT NOT NULL,
+                author TEXT NOT NULL,
+                format TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                cover_path TEXT,
+                file_size INTEGER NOT NULL,
+                language TEXT NOT NULL,
+                tags TEXT,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                deleted_at INTEGER DEFAULT NULL,
+                sync_status TEXT DEFAULT 'pending'
+            );
+
+            CREATE TABLE book_status (
+                book_id TEXT PRIMARY KEY NOT NULL,
+                status TEXT NOT NULL DEFAULT 'unread',
+                progress_current INTEGER DEFAULT 0,
+                progress_total INTEGER DEFAULT 0,
+                location TEXT,
+                last_read_at INTEGER,
+                started_at INTEGER,
+                completed_at INTEGER,
+                metadata TEXT,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                deleted_at INTEGER DEFAULT NULL,
+                sync_status TEXT DEFAULT 'pending'
+            );
+
+            CREATE TABLE book_notes (
+                id TEXT PRIMARY KEY NOT NULL,
+                book_id TEXT NOT NULL,
+                type TEXT NOT NULL,
+                cfi TEXT NOT NULL,
+                text TEXT,
+                style TEXT,
+                color TEXT,
+                note TEXT NOT NULL,
+                context_before TEXT,
+                context_after TEXT,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                deleted_at INTEGER DEFAULT NULL,
+                sync_status TEXT DEFAULT 'pending'
+            );
+
+            CREATE TABLE notes (
+                id TEXT PRIMARY KEY NOT NULL,
+                book_id TEXT,
+                book_meta TEXT,
+                title TEXT,
+                content TEXT,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                deleted_at INTEGER DEFAULT NULL,
+                sync_status TEXT DEFAULT 'pending'
+            );
+
+            CREATE TABLE reading_sessions (
+                id TEXT PRIMARY KEY NOT NULL,
+                book_id TEXT NOT NULL,
+                started_at INTEGER NOT NULL,
+                ended_at INTEGER,
+                duration_seconds INTEGER DEFAULT 0,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                deleted_at INTEGER DEFAULT NULL,
+                sync_status TEXT DEFAULT 'pending'
+            );
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .expect("create tables");
+
+        pool
+    }
+
+    #[tokio::test]
+    async fn deleting_book_soft_deletes_related_rows() {
+        let pool = memory_pool().await;
+
+        sqlx::query(
+            r#"
+            INSERT INTO books (
+                id, title, author, format, file_path, file_size, language, created_at, updated_at
+            ) VALUES ('book-1', 'Title', 'Author', 'EPUB', 'books/book-1/book.epub', 10, 'en', 100, 100);
+            INSERT INTO book_status (book_id, status, created_at, updated_at)
+            VALUES ('book-1', 'reading', 100, 100);
+            INSERT INTO book_notes (id, book_id, type, cfi, note, created_at, updated_at)
+            VALUES ('note-1', 'book-1', 'annotation', 'cfi', '', 100, 100);
+            INSERT INTO notes (id, book_id, title, content, created_at, updated_at)
+            VALUES ('user-note-1', 'book-1', 'Title', 'Content', 100, 100);
+            INSERT INTO reading_sessions (id, book_id, started_at, created_at, updated_at)
+            VALUES ('session-1', 'book-1', 100, 100, 100);
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .expect("insert rows");
+
+        soft_delete_book_cascade(&pool, "book-1", 200)
+            .await
+            .expect("soft delete book");
+
+        for table in ["books", "book_status", "book_notes", "notes", "reading_sessions"] {
+            let row = sqlx::query(&format!(
+                "SELECT deleted_at, updated_at, sync_status FROM {} LIMIT 1",
+                table
+            ))
+            .fetch_one(&pool)
+            .await
+            .expect("load row");
+
+            assert_eq!(row.get::<i64, _>("deleted_at"), 200, "{table}");
+            assert_eq!(row.get::<i64, _>("updated_at"), 200, "{table}");
+            assert_eq!(row.get::<String, _>("sync_status"), "pending", "{table}");
         }
     }
 }
@@ -625,7 +845,7 @@ pub async fn get_reading_session(
 ) -> Result<Option<ReadingSession>, String> {
     let db_pool = get_db_pool(&app_handle).await?;
 
-    let row = sqlx::query("SELECT * FROM reading_sessions WHERE id = ?")
+    let row = sqlx::query("SELECT * FROM reading_sessions WHERE id = ? AND deleted_at IS NULL")
         .bind(&session_id)
         .fetch_optional(&db_pool)
         .await
@@ -663,8 +883,8 @@ pub async fn update_reading_session(
     sqlx::query(
         r#"
         UPDATE reading_sessions SET 
-            ended_at = ?, duration_seconds = ?, updated_at = ?
-        WHERE id = ?
+            ended_at = ?, duration_seconds = ?, updated_at = ?, sync_status = 'pending'
+        WHERE id = ? AND deleted_at IS NULL
         "#,
     )
     .bind(new_ended_at)
@@ -689,7 +909,7 @@ pub async fn get_reading_sessions_by_book(
     let db_pool = get_db_pool(&app_handle).await?;
 
     let mut query =
-        String::from("SELECT * FROM reading_sessions WHERE book_id = ? ORDER BY started_at DESC");
+        String::from("SELECT * FROM reading_sessions WHERE book_id = ? AND deleted_at IS NULL ORDER BY started_at DESC");
 
     if let Some(limit_value) = limit {
         query.push_str(&format!(" LIMIT {}", limit_value));
@@ -714,7 +934,7 @@ pub async fn get_active_reading_session(
 ) -> Result<Option<ReadingSession>, String> {
     let db_pool = get_db_pool(&app_handle).await?;
 
-    let row = sqlx::query("SELECT * FROM reading_sessions WHERE book_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1")
+    let row = sqlx::query("SELECT * FROM reading_sessions WHERE book_id = ? AND ended_at IS NULL AND deleted_at IS NULL ORDER BY started_at DESC LIMIT 1")
         .bind(&book_id)
         .fetch_optional(&db_pool)
         .await
@@ -738,7 +958,7 @@ pub async fn get_all_reading_sessions(
 ) -> Result<Vec<ReadingSession>, String> {
     let db_pool = get_db_pool(&app_handle).await?;
 
-    let mut query = String::from("SELECT * FROM reading_sessions WHERE 1=1");
+    let mut query = String::from("SELECT * FROM reading_sessions WHERE deleted_at IS NULL");
 
     // 添加日期过滤
     if let Some(_start) = start_date {
@@ -848,7 +1068,7 @@ pub async fn get_book_notes(
         r#"
         SELECT id, book_id, type, cfi, text, style, color, note, context_before, context_after, created_at, updated_at
         FROM book_notes
-        WHERE book_id = ?1
+        WHERE book_id = ?1 AND deleted_at IS NULL
         ORDER BY created_at ASC
         "#
     )
@@ -898,8 +1118,9 @@ pub async fn update_book_note(
             note = COALESCE(?, note),
             context_before = COALESCE(?, context_before),
             context_after = COALESCE(?, context_after),
-            updated_at = ?
-        WHERE id = ?
+            updated_at = ?,
+            sync_status = 'pending'
+        WHERE id = ? AND deleted_at IS NULL
         "#,
     )
     .bind(&update_data.r#type)
@@ -927,7 +1148,7 @@ pub async fn update_book_note(
         r#"
         SELECT id, book_id, type, cfi, text, style, color, note, context_before, context_after, created_at, updated_at
         FROM book_notes
-        WHERE id = ?1
+        WHERE id = ?1 AND deleted_at IS NULL
         "#
     )
     .bind(&id)
@@ -942,7 +1163,11 @@ pub async fn update_book_note(
 pub async fn delete_book_note(app_handle: AppHandle, id: String) -> Result<(), String> {
     let db_pool = get_db_pool(&app_handle).await?;
 
-    let result = sqlx::query("DELETE FROM book_notes WHERE id = ?1")
+    let now = chrono::Utc::now().timestamp_millis();
+    let result = sqlx::query(
+        "UPDATE book_notes SET deleted_at = ?1, updated_at = ?1, sync_status = 'pending' WHERE id = ?2 AND deleted_at IS NULL",
+    )
+        .bind(now)
         .bind(&id)
         .execute(&db_pool)
         .await

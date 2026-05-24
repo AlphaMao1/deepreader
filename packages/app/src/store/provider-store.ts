@@ -1,5 +1,6 @@
 import { predefinedProviders } from "@/constants/predefined-providers";
 import { tauriStorageKey } from "@/constants/tauri-storage";
+import { createEncryptedStorage } from "@/lib/encrypted-storage";
 import { tauriStorage } from "@/lib/tauri-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
@@ -67,7 +68,7 @@ export const useProviderStore = create<ProviderState>()(
     }),
     {
       name: tauriStorageKey.modelProvider,
-      storage: createJSONStorage(() => tauriStorage),
+      storage: createJSONStorage(() => createEncryptedStorage(tauriStorage)),
       partialize: (state) => ({
         modelProviders: state.modelProviders,
         selectedModel: state.selectedModel,

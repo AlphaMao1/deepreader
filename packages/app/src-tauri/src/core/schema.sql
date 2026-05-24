@@ -1,3 +1,19 @@
+CREATE TABLE IF NOT EXISTS books (
+    id TEXT PRIMARY KEY NOT NULL,
+    title TEXT NOT NULL,
+    author TEXT NOT NULL,
+    format TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    cover_path TEXT,
+    file_size INTEGER NOT NULL,
+    language TEXT NOT NULL,
+    tags TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    deleted_at INTEGER DEFAULT NULL,
+    sync_status TEXT DEFAULT 'pending'
+);
+
 CREATE TABLE IF NOT EXISTS threads (
     id TEXT PRIMARY KEY NOT NULL,
     book_id TEXT,
@@ -9,160 +25,161 @@ CREATE TABLE IF NOT EXISTS threads (
     FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS books (
-    id TEXT PRIMARY KEY NOT NULL,
-    title TEXT NOT NULL,
-    author TEXT NOT NULL,
-    format TEXT NOT NULL,
-    file_path TEXT NOT NULL,
-    cover_path TEXT,
-    
-    file_size INTEGER NOT NULL,
-    language TEXT NOT NULL,
-    
-    tags TEXT,
-    
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS book_status (
     book_id TEXT PRIMARY KEY NOT NULL,
-    status TEXT NOT NULL DEFAULT 'unread',  -- 'unread', 'reading', 'completed'
+    status TEXT NOT NULL DEFAULT 'unread',
     progress_current INTEGER DEFAULT 0,
     progress_total INTEGER DEFAULT 0,
-    location TEXT,                           -- CFI 位置信息
+    location TEXT,
     last_read_at INTEGER,
     started_at INTEGER,
     completed_at INTEGER,
-    metadata TEXT,                 -- JSON 存储其他信息（设置、偏好等）
+    metadata TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
+    deleted_at INTEGER DEFAULT NULL,
+    sync_status TEXT DEFAULT 'pending',
     FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
 );
 
--- 阅读会话表 - 记录每次详细的阅读会话
 CREATE TABLE IF NOT EXISTS reading_sessions (
     id TEXT PRIMARY KEY NOT NULL,
     book_id TEXT NOT NULL,
-    started_at INTEGER NOT NULL,            -- 开始阅读时间戳
-    ended_at INTEGER,                       -- 结束阅读时间戳（null表示未结束）
-    duration_seconds INTEGER DEFAULT 0,     -- 实际阅读时长（秒）
+    started_at INTEGER NOT NULL,
+    ended_at INTEGER,
+    duration_seconds INTEGER DEFAULT 0,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
+    deleted_at INTEGER DEFAULT NULL,
+    sync_status TEXT DEFAULT 'pending',
     FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS tags (
+    id TEXT PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL,
+    color TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    deleted_at INTEGER DEFAULT NULL,
+    sync_status TEXT DEFAULT 'pending'
+);
 
+CREATE TABLE IF NOT EXISTS notes (
+    id TEXT PRIMARY KEY NOT NULL,
+    book_id TEXT,
+    book_meta TEXT,
+    title TEXT,
+    content TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    deleted_at INTEGER DEFAULT NULL,
+    sync_status TEXT DEFAULT 'pending',
+    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS book_notes (
+    id TEXT PRIMARY KEY NOT NULL,
+    book_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    cfi TEXT NOT NULL,
+    text TEXT,
+    style TEXT,
+    color TEXT,
+    note TEXT NOT NULL,
+    context_before TEXT,
+    context_after TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    deleted_at INTEGER DEFAULT NULL,
+    sync_status TEXT DEFAULT 'pending',
+    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS skills (
+    id TEXT PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL,
+    content TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    is_active INTEGER DEFAULT 1,
+    is_system INTEGER DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    deleted_at INTEGER DEFAULT NULL,
+    sync_status TEXT DEFAULT 'pending'
+);
+
+CREATE TABLE IF NOT EXISTS user_memories (
+    id TEXT PRIMARY KEY NOT NULL,
+    category TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    source_type TEXT,
+    source_id TEXT,
+    book_id TEXT,
+    related_memory_ids TEXT,
+    confidence REAL DEFAULT 1.0,
+    access_count INTEGER DEFAULT 0,
+    last_accessed_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    deleted_at INTEGER DEFAULT NULL,
+    sync_status TEXT DEFAULT 'pending',
+    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE SET NULL
+);
 
 CREATE INDEX IF NOT EXISTS idx_books_title ON books(title);
 CREATE INDEX IF NOT EXISTS idx_books_author ON books(author);
 CREATE INDEX IF NOT EXISTS idx_books_updated_at ON books(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_books_deleted_at ON books(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_books_sync_status ON books(sync_status);
+
+CREATE INDEX IF NOT EXISTS idx_threads_book_id ON threads(book_id);
 
 CREATE INDEX IF NOT EXISTS idx_book_status_status ON book_status(status);
 CREATE INDEX IF NOT EXISTS idx_book_status_progress ON book_status(progress_current, progress_total);
 CREATE INDEX IF NOT EXISTS idx_book_status_location ON book_status(location);
 CREATE INDEX IF NOT EXISTS idx_book_status_last_read ON book_status(last_read_at DESC);
 CREATE INDEX IF NOT EXISTS idx_book_status_updated_at ON book_status(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_book_status_deleted_at ON book_status(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_book_status_sync_status ON book_status(sync_status);
 
-CREATE INDEX IF NOT EXISTS idx_threads_book_id ON threads(book_id);
-
--- reading_sessions 表的索引
 CREATE INDEX IF NOT EXISTS idx_reading_sessions_book_id ON reading_sessions(book_id);
 CREATE INDEX IF NOT EXISTS idx_reading_sessions_started_at ON reading_sessions(started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_reading_sessions_date ON reading_sessions(DATE(started_at/1000, 'unixepoch'));
 CREATE INDEX IF NOT EXISTS idx_reading_sessions_book_date ON reading_sessions(book_id, DATE(started_at/1000, 'unixepoch'));
-
-CREATE TABLE IF NOT EXISTS tags (
-    id TEXT PRIMARY KEY NOT NULL,
-    name TEXT NOT NULL UNIQUE,
-    color TEXT,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-);
+CREATE INDEX IF NOT EXISTS idx_reading_sessions_deleted_at ON reading_sessions(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_reading_sessions_sync_status ON reading_sessions(sync_status);
 
 CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_active_name_unique ON tags(name) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_tags_updated_at ON tags(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tags_deleted_at ON tags(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_tags_sync_status ON tags(sync_status);
 
--- 笔记表
-CREATE TABLE IF NOT EXISTS notes (
-    id TEXT PRIMARY KEY NOT NULL,
-    book_id TEXT,                           -- 可选关联的书籍ID
-    book_meta TEXT,                         -- JSON 存储书籍信息（title, author）
-    title TEXT,                             -- 笔记标题（可选）
-    content TEXT,                           -- 笔记内容（可选，支持markdown）
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
-    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE SET NULL
-);
-
--- notes 表的索引
 CREATE INDEX IF NOT EXISTS idx_notes_book_id ON notes(book_id);
 CREATE INDEX IF NOT EXISTS idx_notes_updated_at ON notes(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notes_created_at ON notes(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notes_deleted_at ON notes(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_notes_sync_status ON notes(sync_status);
 
--- BookNote 表 - 存储书籍标注、书签、摘录等
-CREATE TABLE IF NOT EXISTS book_notes (
-    id TEXT PRIMARY KEY NOT NULL,
-    book_id TEXT NOT NULL,
-    type TEXT NOT NULL,                    -- 笔记类型: bookmark|annotation|excerpt
-    cfi TEXT NOT NULL,                     -- 位置信息 (CFI格式)
-    text TEXT,                             -- 选中的文本内容
-    style TEXT,                            -- 高亮样式: highlight|underline|squiggly
-    color TEXT,                            -- 颜色: red|yellow|green|blue|violet
-    note TEXT NOT NULL,                    -- 用户笔记内容
-    context_before TEXT,                   -- 前文上下文
-    context_after TEXT,                    -- 后文上下文
-    created_at INTEGER NOT NULL,           -- 创建时间戳
-    updated_at INTEGER NOT NULL,           -- 更新时间戳
-    
-    -- 外键约束
-    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
-);
-
--- book_notes 表的索引
 CREATE INDEX IF NOT EXISTS idx_book_notes_book_id ON book_notes(book_id);
 CREATE INDEX IF NOT EXISTS idx_book_notes_type ON book_notes(type);
 CREATE INDEX IF NOT EXISTS idx_book_notes_created_at ON book_notes(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_book_notes_cfi ON book_notes(cfi);
+CREATE INDEX IF NOT EXISTS idx_book_notes_deleted_at ON book_notes(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_book_notes_sync_status ON book_notes(sync_status);
 
--- 技能库表 - 存储 AI 技能的标准操作流程
-CREATE TABLE IF NOT EXISTS skills (
-    id TEXT PRIMARY KEY NOT NULL,
-    name TEXT NOT NULL UNIQUE,             -- 技能名称（如：生成思维导图）
-    content TEXT NOT NULL,                 -- 技能内容（Markdown 格式的完整说明）
-    description TEXT NOT NULL DEFAULT '',  -- 技能简述（1-2 句话，注入提示词用于触发判断）
-    is_active INTEGER DEFAULT 1,           -- 是否启用（1=启用，0=禁用）
-    is_system INTEGER DEFAULT 0,           -- 是否为系统技能（1=系统，0=用户，系统技能不可删除）
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-);
-
--- skills 表的索引
 CREATE INDEX IF NOT EXISTS idx_skills_name ON skills(name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_active_name_unique ON skills(name) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_skills_is_active ON skills(is_active);
 CREATE INDEX IF NOT EXISTS idx_skills_updated_at ON skills(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_skills_deleted_at ON skills(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_skills_sync_status ON skills(sync_status);
 
--- 用户记忆表 - Agent 跨 session 的持久化语义记忆
-CREATE TABLE IF NOT EXISTS user_memories (
-    id TEXT PRIMARY KEY NOT NULL,
-    category TEXT NOT NULL,           -- user_profile | book_gist | concept
-    key TEXT NOT NULL,                -- 语义键 ("explanation_style", "GEB-core-thesis")
-    value TEXT NOT NULL,              -- 自然语言描述
-    source_type TEXT,                 -- conversation | annotation | auto_extract | manual
-    source_id TEXT,                   -- thread_id / book_note_id
-    book_id TEXT,                     -- concept/book_gist 关联书籍
-    related_memory_ids TEXT,          -- JSON 数组：关联的其他记忆 ID
-    confidence REAL DEFAULT 1.0,      -- 置信度 0-1
-    access_count INTEGER DEFAULT 0,   -- 被注入 prompt 的次数
-    last_accessed_at INTEGER,         -- 上次注入时间
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
-    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE SET NULL
-);
-
--- user_memories 表的索引
 CREATE INDEX IF NOT EXISTS idx_memories_category ON user_memories(category);
 CREATE INDEX IF NOT EXISTS idx_memories_book_id ON user_memories(book_id);
 CREATE INDEX IF NOT EXISTS idx_memories_key ON user_memories(key);
 CREATE INDEX IF NOT EXISTS idx_memories_access ON user_memories(access_count DESC);
+CREATE INDEX IF NOT EXISTS idx_memories_deleted_at ON user_memories(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_memories_sync_status ON user_memories(sync_status);

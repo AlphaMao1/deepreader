@@ -29,9 +29,6 @@
     "core:window:allow-is-maximized",
     "core:window:allow-set-decorations",
     "core:path:default",
-    "global-shortcut:allow-is-registered",
-    "global-shortcut:allow-register",
-    "global-shortcut:allow-unregister",
     "fs:allow-appconfig-read-recursive",
     "fs:allow-appconfig-write-recursive",
     "fs:allow-appdata-read-recursive",
@@ -61,17 +58,6 @@
     "dialog:allow-save",
     "log:default",
     "fs:allow-write-file",
-    {
-      "identifier": "llamacpp:default",
-      "allow": [
-        {
-          "path": "$APPDATA"
-        },
-        {
-          "path": "$APPDATA/**"
-        }
-      ]
-    },
     "epub:default",
     "shell:allow-execute",
     {

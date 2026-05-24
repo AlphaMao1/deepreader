@@ -1,5 +1,5 @@
 import { appConfigDir, appDataDir } from "@tauri-apps/api/path";
-import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { exists, mkdir, readTextFile, remove, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { StateStorage } from "zustand/middleware";
 interface StoragePath {
   dirPath: string;
@@ -17,6 +17,14 @@ interface PendingWrite {
 const pendingWrites = new Map<string, PendingWrite>();
 const hasTauriApis = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 const browserStorageKey = (name: string) => `deepreader:${name}`;
+
+const cancelPendingWrite = (name: string) => {
+  const pending = pendingWrites.get(name);
+  if (pending) {
+    clearTimeout(pending.timer);
+    pendingWrites.delete(name);
+  }
+};
 
 const debouncedWrite = (name: string, filePath: string, value: string) => {
   const existing = pendingWrites.get(name);
@@ -66,6 +74,16 @@ const getStorageFile = async (name: string): Promise<string> => {
   return `${configDir}/${name}.json`;
 };
 
+const ensureConfigDir = async () => {
+  const configDir = await appConfigDir();
+
+  if (!(await exists(configDir))) {
+    await mkdir(configDir, { recursive: true });
+  }
+
+  return configDir;
+};
+
 export const tauriStorage: StateStorage = {
   getItem: async (name: string): Promise<string | null> => {
     if (!hasTauriApis()) {
@@ -95,11 +113,7 @@ export const tauriStorage: StateStorage = {
 
     try {
       const filePath = await getStorageFile(name);
-      const configDir = await appConfigDir();
-
-      if (!(await exists(configDir))) {
-        await mkdir(configDir, { recursive: true });
-      }
+      await ensureConfigDir();
 
       debouncedWrite(name, filePath, value);
     } catch (error) {
@@ -110,6 +124,36 @@ export const tauriStorage: StateStorage = {
   removeItem: async (name: string): Promise<void> => {
     if (!hasTauriApis()) {
       localStorage.removeItem(browserStorageKey(name));
+      return;
+    }
+
+    try {
+      const filePath = await getStorageFile(name);
+      cancelPendingWrite(name);
+      if (await exists(filePath)) {
+        await remove(filePath);
+      }
+    } catch (error) {
+      console.error("Zustand removeItem Error:", error);
+    }
+  },
+};
+
+export const immediateTauriStorage: StateStorage = {
+  ...tauriStorage,
+  setItem: async (name: string, value: string): Promise<void> => {
+    if (!hasTauriApis()) {
+      localStorage.setItem(browserStorageKey(name), value);
+      return;
+    }
+
+    try {
+      const filePath = await getStorageFile(name);
+      await ensureConfigDir();
+      cancelPendingWrite(name);
+      await writeTextFile(filePath, value);
+    } catch (error) {
+      console.error("Immediate storage setItem Error:", error);
     }
   },
 };
@@ -160,7 +204,10 @@ const createStateStorage = (resolve: StoragePathResolver): StateStorage => {
 
       try {
         const { filePath } = await resolve(name);
-        pendingWrites.delete(filePath);
+        cancelPendingWrite(filePath);
+        if (await exists(filePath)) {
+          await remove(filePath);
+        }
       } catch (error) {
         console.error("Scoped storage removeItem error:", error);
       }

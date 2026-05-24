@@ -1,8 +1,9 @@
-use sqlx::{migrate::MigrateDatabase, Sqlite, SqlitePool};
+use sqlx::{migrate::MigrateDatabase, Row, Sqlite, SqlitePool};
 use std::fs;
 use tauri::{AppHandle, Manager};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use crate::core::sync::run_schema_migrations;
 
 #[derive(Deserialize, Serialize, Debug)]
 struct DefaultSkill {
@@ -69,6 +70,8 @@ async fn run_migrations(pool: &SqlitePool) -> Result<(), Box<dyn std::error::Err
         println!("Migration applied: added 'description' column to skills table.");
     }
 
+    run_schema_migrations(pool).await?;
+
     Ok(())
 }
 
@@ -84,19 +87,35 @@ async fn sync_default_skills(pool: &SqlitePool) -> Result<(), Box<dyn std::error
     for skill in default_skills {
         let now = chrono::Utc::now().timestamp_millis();
 
-        // 查找是否已存在同名 skill
-        let existing = sqlx::query("SELECT id FROM skills WHERE name = ?")
+        // 优先更新 active 行；如果只存在 tombstone，则恢复最近删除的那一行。
+        let existing = sqlx::query(
+            r#"
+            SELECT id FROM (
+                SELECT id, 0 AS sort_rank, updated_at AS sort_time
+                FROM skills
+                WHERE name = ? AND deleted_at IS NULL
+                UNION ALL
+                SELECT id, 1 AS sort_rank, deleted_at AS sort_time
+                FROM skills
+                WHERE name = ? AND deleted_at IS NOT NULL
+            ) AS candidates
+            ORDER BY sort_rank ASC, sort_time DESC
+            LIMIT 1
+            "#,
+        )
+            .bind(&skill.name)
             .bind(&skill.name)
             .fetch_optional(pool)
             .await?;
 
-        if existing.is_some() {
+        if let Some(row) = existing {
+            let skill_id: String = row.try_get("id")?;
             // 更新已有 skill 的 content、description 和状态
             sqlx::query(
                 r#"
                 UPDATE skills
-                SET content = ?, description = ?, is_active = ?, is_system = ?, updated_at = ?
-                WHERE name = ?
+                SET content = ?, description = ?, is_active = ?, is_system = ?, updated_at = ?, deleted_at = NULL, sync_status = 'pending'
+                WHERE id = ?
                 "#,
             )
             .bind(&skill.content)
@@ -104,7 +123,7 @@ async fn sync_default_skills(pool: &SqlitePool) -> Result<(), Box<dyn std::error
             .bind(if skill.is_active { 1 } else { 0 })
             .bind(if skill.is_system { 1 } else { 0 })
             .bind(now)
-            .bind(&skill.name)
+            .bind(&skill_id)
             .execute(pool)
             .await?;
             println!("🔄 Updated skill: {}", skill.name);

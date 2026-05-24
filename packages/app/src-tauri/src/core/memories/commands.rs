@@ -1,4 +1,5 @@
 use super::models::*;
+use crate::core::sync::run_schema_migrations;
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
@@ -89,11 +90,11 @@ pub async fn get_memories(
     let limit = opts.limit.unwrap_or(50);
     let offset = opts.offset.unwrap_or(0);
 
-    let mut query_builder = sqlx::QueryBuilder::new("SELECT * FROM user_memories");
-    let mut has_where = false;
+    let mut query_builder = sqlx::QueryBuilder::new("SELECT * FROM user_memories WHERE deleted_at IS NULL");
+    let mut has_where = true;
 
     if let Some(ref category) = opts.category {
-        query_builder.push(" WHERE category = ").push_bind(category);
+        query_builder.push(" AND category = ").push_bind(category);
         has_where = true;
     }
 
@@ -125,7 +126,7 @@ pub async fn get_memory_by_id(
 ) -> Result<Option<Memory>, String> {
     let db_pool = get_db_pool(&app_handle).await?;
 
-    let row = sqlx::query("SELECT * FROM user_memories WHERE id = ?")
+    let row = sqlx::query("SELECT * FROM user_memories WHERE id = ? AND deleted_at IS NULL")
         .bind(&id)
         .fetch_optional(&db_pool)
         .await
@@ -198,8 +199,12 @@ pub async fn update_memory(
     }
 
     separated.push("updated_at = ").push_bind(now);
+    separated.push("sync_status = 'pending'");
 
-    query_builder.push(" WHERE id = ").push_bind(&data.id);
+    query_builder
+        .push(" WHERE id = ")
+        .push_bind(&data.id)
+        .push(" AND deleted_at IS NULL");
 
     let result = query_builder
         .build()
@@ -220,7 +225,12 @@ pub async fn update_memory(
 pub async fn delete_memory(app_handle: AppHandle, id: String) -> Result<(), String> {
     let db_pool = get_db_pool(&app_handle).await?;
 
-    let result = sqlx::query("DELETE FROM user_memories WHERE id = ?")
+    let now = chrono::Utc::now().timestamp_millis();
+    let result = sqlx::query(
+        "UPDATE user_memories SET deleted_at = ?, updated_at = ?, sync_status = 'pending' WHERE id = ? AND deleted_at IS NULL",
+    )
+        .bind(now)
+        .bind(now)
         .bind(&id)
         .execute(&db_pool)
         .await
@@ -245,7 +255,7 @@ pub async fn search_memories(
     let max = limit.unwrap_or(20);
 
     let mut query_builder = sqlx::QueryBuilder::new(
-        "SELECT * FROM user_memories WHERE (key LIKE "
+        "SELECT * FROM user_memories WHERE deleted_at IS NULL AND (key LIKE "
     );
     query_builder.push_bind(search_pattern.clone());
     query_builder.push(" OR value LIKE ");
@@ -284,7 +294,7 @@ pub async fn touch_memories(
 
     for id in &ids {
         sqlx::query(
-            "UPDATE user_memories SET access_count = access_count + 1, last_accessed_at = ?, updated_at = ? WHERE id = ?"
+            "UPDATE user_memories SET access_count = access_count + 1, last_accessed_at = ?, updated_at = ?, sync_status = 'pending' WHERE id = ? AND deleted_at IS NULL"
         )
         .bind(now)
         .bind(now)
@@ -306,7 +316,11 @@ async fn get_db_pool(app_handle: &AppHandle) -> Result<SqlitePool, String> {
     let db_path = app_data_dir.join("database").join("app.db");
     let db_url = format!("sqlite:{}", db_path.display());
 
-    SqlitePool::connect(&db_url)
+    let pool = SqlitePool::connect(&db_url)
         .await
-        .map_err(|e| format!("数据库连接失败: {}", e))
+        .map_err(|e| format!("数据库连接失败: {}", e))?;
+    run_schema_migrations(&pool)
+        .await
+        .map_err(|e| format!("数据库迁移失败: {}", e))?;
+    Ok(pool)
 }

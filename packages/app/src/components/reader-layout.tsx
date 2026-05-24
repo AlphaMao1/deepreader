@@ -5,6 +5,7 @@ import SettingsDialog from "@/components/settings/settings-dialog";
 import SideChat from "@/components/side-chat";
 import WindowControls from "@/components/window-controls";
 import { useFontEvents } from "@/hooks/use-font-events";
+import { useSyncScheduler } from "@/hooks/use-sync-scheduler";
 import ReaderViewer from "@/pages/reader";
 import { ReaderProvider } from "@/pages/reader/components/reader-provider";
 import { useAppSettingsStore } from "@/store/app-settings-store";
@@ -18,6 +19,7 @@ import { useEffect, useRef, useState } from "react";
 
 export default function ReaderLayout() {
   useFontEvents();
+  useSyncScheduler();
   const {
     tabs,
     activeTabId,

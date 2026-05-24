@@ -3,15 +3,14 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { PresetModel } from "@/constants/preset-models";
-import { deleteLocalModel, downloadModelFile, getAppDataDir } from "@/services/model-service";
 import { useLlamaStore } from "@/store/llama-store";
+import { supportsLocalLlm } from "@/utils/platform-features";
 import { listen } from "@tauri-apps/api/event";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { type as getOsType } from "@tauri-apps/plugin-os";
 import { Check, ChevronDown, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { LlamaServerManager, LlamacppClient } from "./llama-client";
 import VectorModelManager from "./vector-model-manager";
 
 export default function LlamaSettings() {
@@ -39,12 +38,16 @@ export default function LlamaSettings() {
   const [customDimension, setCustomDimension] = useState<number>(1024);
   const [appDataDir, setAppDataDir] = useState("");
   const [isMacOS, setIsMacOS] = useState(false);
+  const localLlmSupported = supportsLocalLlm();
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   useEffect(() => {
+    if (!localLlmSupported) return;
+
     (async () => {
       if (!currentSession) {
         try {
+          const { LlamacppClient } = await import("./llama-client");
           const client = new LlamacppClient();
           const sessions = await client.getAllSessions();
           if (sessions && sessions.length > 0) {
@@ -56,6 +59,7 @@ export default function LlamaSettings() {
 
       // 获取 app data 目录
       try {
+        const { getAppDataDir } = await import("@/services/model-service");
         const dir = await getAppDataDir();
         setAppDataDir(dir);
       } catch (error) {
@@ -95,7 +99,7 @@ export default function LlamaSettings() {
       unlistenProgress.then((fn) => fn());
       unlistenComplete.then((fn) => fn());
     };
-  }, [updateDownloadProgress, setDownloadState, setModelPath]);
+  }, [localLlmSupported, updateDownloadProgress, setDownloadState, setModelPath]);
 
   useEffect(() => {
     const osType = getOsType();
@@ -114,6 +118,7 @@ export default function LlamaSettings() {
     });
 
     try {
+      const { downloadModelFile } = await import("@/services/model-service");
       await downloadModelFile(model.url, model.filename);
       toast.info(`开始下载 ${model.id}...`);
     } catch (error) {
@@ -137,6 +142,7 @@ export default function LlamaSettings() {
         return;
       }
 
+      const { deleteLocalModel } = await import("@/services/model-service");
       await deleteLocalModel(filename);
       toast.success(`已删除模型: ${filename}`);
 
@@ -192,6 +198,7 @@ export default function LlamaSettings() {
     setShowCustomDownload(false);
 
     try {
+      const { downloadModelFile } = await import("@/services/model-service");
       await downloadModelFile(downloadUrl, filename);
       toast.info(`开始下载模型文件: ${filename}`);
     } catch (error) {
@@ -209,6 +216,7 @@ export default function LlamaSettings() {
 
     setServerStatus("正在检测系统并准备后端…");
     try {
+      const { LlamaServerManager } = await import("./llama-client");
       const serverManager = new LlamaServerManager();
 
       setServerStatus("正在创建应用数据目录结构…");
@@ -271,6 +279,7 @@ export default function LlamaSettings() {
     }
     setServerStatus("正在停止服务器…");
     try {
+      const { LlamaServerManager } = await import("./llama-client");
       const serverManager = new LlamaServerManager();
       await serverManager.stopServer(currentSession);
       setCurrentSession(null);
@@ -286,7 +295,7 @@ export default function LlamaSettings() {
   return (
     <div className="space-y-4 p-4 pt-3 text-neutral-800 dark:text-neutral-100">
       <VectorModelManager />
-      {isMacOS && (
+      {localLlmSupported && isMacOS && (
         <>
           <div className="flex items-center justify-center">
             <div className="flex-grow border-neutral-300 border-t dark:border-neutral-600" />

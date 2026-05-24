@@ -3,7 +3,15 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
 import { uploadBook } from "@/services/book-service";
+import { getAuthSnapshot, getSupabaseClient } from "@/services/auth-service";
+import {
+  getCloudLastSyncedAt,
+  shouldConfirmCloudSyncAccountBoundary,
+  withCloudLastSyncedAt,
+} from "@/services/cloud-sync-state";
 import { FILE_ACCEPT_FORMATS } from "@/services/constants";
+import { runIncrementalSync } from "@/services/sync-service";
+import { useAppSettingsStore } from "@/store/app-settings-store";
 import { useLibraryStore } from "@/store/library-store";
 import { getFilename, listFormater } from "@/utils/book";
 import { eventDispatcher } from "@/utils/event";
@@ -13,6 +21,35 @@ export function useBookUpload() {
   const [isUploading, setIsUploading] = useState(false);
   const { refreshBooks } = useLibraryStore();
 
+  const syncAfterImport = useCallback(async () => {
+    const { settings, setSettings } = useAppSettingsStore.getState();
+    if (!settings.cloudSyncEnabled) return;
+    if (!settings.supabaseUrl || !settings.supabaseAnonKey) return;
+
+    const config = {
+      url: settings.supabaseUrl,
+      anonKey: settings.supabaseAnonKey,
+    };
+    const auth = await getAuthSnapshot(config);
+    if (!auth.user) return;
+    if (shouldConfirmCloudSyncAccountBoundary(settings, auth.user.id)) {
+      toast.warning("书籍已导入。当前云账号需要先在设置中手动确认同步，本次自动同步已跳过");
+      return;
+    }
+
+    const result = await runIncrementalSync({
+      client: getSupabaseClient(config),
+      userId: auth.user.id,
+      lastSyncedAt: getCloudLastSyncedAt(settings, auth.user.id),
+      epubCloudSyncEnabled: settings.epubCloudSyncEnabled,
+    });
+    const latest = useAppSettingsStore.getState().settings;
+    setSettings({
+      ...latest,
+      ...withCloudLastSyncedAt(latest, auth.user.id, result.syncedAt),
+    });
+  }, []);
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(true);
@@ -21,33 +58,6 @@ export function useBookUpload() {
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-
-    const files = Array.from(e.dataTransfer.files);
-    handleDropedFiles(files);
-  }, []);
-
-  const handleDropedFiles = useCallback(async (files: File[]) => {
-    if (files.length === 0) return;
-
-    const supportedFiles = files.filter((file) => {
-      const fileExt = file.name.split(".").pop()?.toLowerCase();
-      return FILE_ACCEPT_FORMATS.includes(`.${fileExt}`);
-    });
-
-    if (supportedFiles.length === 0) {
-      eventDispatcher.dispatch("toast", {
-        message: `未找到支持的文件。支持的格式：${FILE_ACCEPT_FORMATS}`,
-        type: "error",
-      });
-      return;
-    }
-
-    await importBooks(supportedFiles);
   }, []);
 
   const importBooks = useCallback(
@@ -78,9 +88,46 @@ export function useBookUpload() {
       if (successBooks.length > 0) {
         toast.success(`成功导入 ${successBooks.length} 本书籍`);
         await refreshBooks();
+        syncAfterImport().catch((error) => {
+          console.warn("Cloud sync after import skipped:", error);
+          toast.warning("书籍已导入，本次云同步稍后重试");
+        });
       }
     },
-    [refreshBooks],
+    [refreshBooks, syncAfterImport],
+  );
+
+  const handleDropedFiles = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) return;
+
+      const supportedFiles = files.filter((file) => {
+        const fileExt = file.name.split(".").pop()?.toLowerCase();
+        return FILE_ACCEPT_FORMATS.includes(`.${fileExt}`);
+      });
+
+      if (supportedFiles.length === 0) {
+        eventDispatcher.dispatch("toast", {
+          message: `未找到支持的文件。支持的格式：${FILE_ACCEPT_FORMATS}`,
+          type: "error",
+        });
+        return;
+      }
+
+      await importBooks(supportedFiles);
+    },
+    [importBooks],
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragOver(false);
+
+      const files = Array.from(e.dataTransfer.files);
+      handleDropedFiles(files);
+    },
+    [handleDropedFiles],
   );
 
   const selectFiles = useCallback((): Promise<FileList | null> => {

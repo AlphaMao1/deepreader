@@ -25,6 +25,7 @@ export interface VectorModelConfig {
 export async function getCurrentVectorModelConfig(): Promise<VectorModelConfig> {
   const { useLlamaStore } = await import("@/store/llama-store");
   const { PRESET_EMBEDDING_MODELS } = await import("@/constants/preset-models");
+  const { supportsLocalLlm } = await import("@/utils/platform-features");
   const llamaState = useLlamaStore.getState();
 
   if (llamaState.vectorModelEnabled) {
@@ -38,6 +39,10 @@ export async function getCurrentVectorModelConfig(): Promise<VectorModelConfig> 
         source: "external",
       };
     }
+  }
+
+  if (!supportsLocalLlm()) {
+    throw new Error("当前平台仅支持远程向量模型，请先配置并启用远程 embeddings 端点");
   }
 
   const port = llamaState.currentSession?.port;

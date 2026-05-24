@@ -23,13 +23,9 @@ use crate::core::{
         update_book_status,
         update_reading_session,
     },
+    crypto::{decrypt_secret_payload, encrypt_secret_payload},
     database,
     fonts::commands::{upload_and_convert_font, upload_font_data},
-    llama::commands::{
-        delete_local_model, download_llama_server, download_model_file,
-        ensure_llamacpp_directories, get_app_data_dir, get_llamacpp_backend_path, greet,
-        list_local_models, llama_server_binary_name_cmd,
-    },
     memories::commands::{
         create_memory, delete_memory, get_memories, get_memory_by_id, search_memories,
         touch_memories, update_memory,
@@ -40,6 +36,7 @@ use crate::core::{
         update_skill,
     },
     state::AppState,
+    sync::{bulk_upsert, get_changed_since, get_tombstones_since, mark_synced},
     tags::commands::{
         create_tag, delete_tag, get_tag_by_id, get_tag_by_name, get_tags, update_tag,
     },
@@ -50,19 +47,33 @@ use crate::core::{
 };
 use tauri::Manager;
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use crate::core::llama::commands::{
+    delete_local_model, download_llama_server, download_model_file, ensure_llamacpp_directories,
+    get_app_data_dir, get_llamacpp_backend_path, greet, list_local_models, llama_server_binary_name_cmd,
+};
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_os::init());
+
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
+
+    let builder = builder
         .manage(AppState::default())
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_llamacpp::init())
+        .plugin(tauri_plugin_dialog::init());
+
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let builder = builder.plugin(tauri_plugin_llamacpp::init());
+
+    let builder = builder
         .plugin(
             tauri_plugin_log::Builder::default()
                 .level(log::LevelFilter::Info)
@@ -71,7 +82,9 @@ pub fn run() {
         .plugin(tauri_plugin_epub::init())
         .setup(|app| {
             let app_handle = app.handle().clone();
-            if std::env::consts::OS == "windows" {
+
+            #[cfg(target_os = "windows")]
+            {
                 if let Some(window) = app.get_webview_window("main") {
                     if let Err(e) = window.set_decorations(false) {
                         eprintln!("Failed to set window decorations: {}", e);
@@ -89,86 +102,155 @@ pub fn run() {
                 *db_pool_guard = Some(pool);
             });
             Ok(())
-        })
-        .invoke_handler(tauri::generate_handler![
-            create_thread,
-            edit_thread,
-            delete_thread,
-            get_latest_thread_by_book_id,
-            get_threads_by_book_id,
-            get_thread_by_id,
-            get_all_threads,
-            save_book,
-            get_books,
-            get_book_by_id,
-            update_book,
-            delete_book,
-            get_book_status,
-            update_book_status,
-            get_books_with_status,
-            get_book_with_status_by_id,
-            // reading sessions
-            create_reading_session,
-            get_reading_session,
-            update_reading_session,
-            get_reading_sessions_by_book,
-            get_active_reading_session,
-            get_all_reading_sessions,
-            // book notes
-            create_book_note,
-            get_book_notes,
-            update_book_note,
-            delete_book_note,
-            create_tag,
-            get_tags,
-            get_tag_by_id,
-            get_tag_by_name,
-            update_tag,
-            delete_tag,
-            // notes
-            create_note,
-            update_note,
-            delete_note,
-            get_note_by_id,
-            get_notes,
-            // skills
-            create_skill,
-            get_skills,
-            get_skill_by_id,
-            update_skill,
-            delete_skill,
-            toggle_skill_active,
-            // memories
-            create_memory,
-            get_memories,
-            get_memory_by_id,
-            update_memory,
-            delete_memory,
-            search_memories,
-            touch_memories,
-            // fonts
-            upload_and_convert_font,
-            upload_font_data,
-            // llama
-            greet,
-            get_app_data_dir,
-            get_llamacpp_backend_path,
-            ensure_llamacpp_directories,
-            download_llama_server,
-            llama_server_binary_name_cmd,
-            list_local_models,
-            download_model_file,
-            delete_local_model,
-        ])
-        .on_window_event(|window, event| {
+        });
+
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        create_thread,
+        edit_thread,
+        delete_thread,
+        get_latest_thread_by_book_id,
+        get_threads_by_book_id,
+        get_thread_by_id,
+        get_all_threads,
+        save_book,
+        get_books,
+        get_book_by_id,
+        update_book,
+        delete_book,
+        get_book_status,
+        update_book_status,
+        get_books_with_status,
+        get_book_with_status_by_id,
+        create_reading_session,
+        get_reading_session,
+        update_reading_session,
+        get_reading_sessions_by_book,
+        get_active_reading_session,
+        get_all_reading_sessions,
+        create_book_note,
+        get_book_notes,
+        update_book_note,
+        delete_book_note,
+        create_tag,
+        get_tags,
+        get_tag_by_id,
+        get_tag_by_name,
+        update_tag,
+        delete_tag,
+        create_note,
+        update_note,
+        delete_note,
+        get_note_by_id,
+        get_notes,
+        create_skill,
+        get_skills,
+        get_skill_by_id,
+        update_skill,
+        delete_skill,
+        toggle_skill_active,
+        create_memory,
+        get_memories,
+        get_memory_by_id,
+        update_memory,
+        delete_memory,
+        search_memories,
+        touch_memories,
+        get_changed_since,
+        get_tombstones_since,
+        bulk_upsert,
+        mark_synced,
+        encrypt_secret_payload,
+        decrypt_secret_payload,
+        upload_and_convert_font,
+        upload_font_data,
+        greet,
+        get_app_data_dir,
+        get_llamacpp_backend_path,
+        ensure_llamacpp_directories,
+        download_llama_server,
+        llama_server_binary_name_cmd,
+        list_local_models,
+        download_model_file,
+        delete_local_model,
+    ]);
+
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        create_thread,
+        edit_thread,
+        delete_thread,
+        get_latest_thread_by_book_id,
+        get_threads_by_book_id,
+        get_thread_by_id,
+        get_all_threads,
+        save_book,
+        get_books,
+        get_book_by_id,
+        update_book,
+        delete_book,
+        get_book_status,
+        update_book_status,
+        get_books_with_status,
+        get_book_with_status_by_id,
+        create_reading_session,
+        get_reading_session,
+        update_reading_session,
+        get_reading_sessions_by_book,
+        get_active_reading_session,
+        get_all_reading_sessions,
+        create_book_note,
+        get_book_notes,
+        update_book_note,
+        delete_book_note,
+        create_tag,
+        get_tags,
+        get_tag_by_id,
+        get_tag_by_name,
+        update_tag,
+        delete_tag,
+        create_note,
+        update_note,
+        delete_note,
+        get_note_by_id,
+        get_notes,
+        create_skill,
+        get_skills,
+        get_skill_by_id,
+        update_skill,
+        delete_skill,
+        toggle_skill_active,
+        create_memory,
+        get_memories,
+        get_memory_by_id,
+        update_memory,
+        delete_memory,
+        search_memories,
+        touch_memories,
+        get_changed_since,
+        get_tombstones_since,
+        bulk_upsert,
+        mark_synced,
+        encrypt_secret_payload,
+        decrypt_secret_payload,
+        upload_and_convert_font,
+        upload_font_data,
+    ]);
+
+    builder
+        .on_window_event(|_window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
-                let app_handle = window.app_handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    if let Err(e) = tauri_plugin_llamacpp::cleanup_llama_processes(app_handle).await
-                    {
-                        log::error!("清理 llamacpp 进程失败: {}", e);
-                    }
-                });
+                #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                {
+                    let app_handle = _window.app_handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(e) =
+                            tauri_plugin_llamacpp::cleanup_llama_processes(app_handle).await
+                        {
+                            log::error!("清理 llamacpp 进程失败: {}", e);
+                        }
+                    });
+                }
             }
         })
         .run(tauri::generate_context!())

@@ -1,5 +1,7 @@
+import { createEncryptedStorage } from "@/lib/encrypted-storage";
+import { tauriStorage } from "@/lib/tauri-storage";
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
 
 export interface TTSConfig {
   apiKey: string;
@@ -14,6 +16,26 @@ interface TTSStore {
   setLanguageType: (languageType: string) => void;
   setConfig: (config: Partial<TTSConfig>) => void;
 }
+
+const legacyTtsStorage: StateStorage = {
+  getItem: async (name) => {
+    const current = await tauriStorage.getItem(name);
+    if (current) return current;
+
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem(name) ?? localStorage.getItem(`deepreader:${name}`);
+  },
+  setItem: async (name, value) => {
+    await tauriStorage.setItem(name, value);
+  },
+  removeItem: async (name) => {
+    await tauriStorage.removeItem(name);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(name);
+      localStorage.removeItem(`deepreader:${name}`);
+    }
+  },
+};
 
 export const useTTSStore = create<TTSStore>()(
   persist(
@@ -42,6 +64,7 @@ export const useTTSStore = create<TTSStore>()(
     }),
     {
       name: "tts-config-storage",
+      storage: createJSONStorage(() => createEncryptedStorage(legacyTtsStorage)),
     },
   ),
 );

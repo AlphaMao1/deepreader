@@ -192,11 +192,11 @@ export default function BookItem({ book, availableTags = [], onDelete, onUpdate,
   // Extracted vectorization action
   const handleVectorizeBook = useCallback(async () => {
     const { addNotification } = useNotificationStore.getState();
-
-    const vectorConfig = await getCurrentVectorModelConfig();
     const version = 1;
+    let vectorizationStarted = false;
 
     try {
+      const vectorConfig = await getCurrentVectorModelConfig();
       toast.info("开始向量化...");
       setVectorizeProgress(0);
       await updateBookVectorizationMeta(book.id, {
@@ -206,6 +206,7 @@ export default function BookItem({ book, availableTags = [], onDelete, onUpdate,
         version,
         startedAt: Date.now(),
       });
+      vectorizationStarted = true;
 
       const res: EpubIndexResult = await indexEpub(book.id, {
         dimension: vectorConfig.dimension,
@@ -235,13 +236,15 @@ export default function BookItem({ book, availableTags = [], onDelete, onUpdate,
       if (onRefresh) await onRefresh();
     } catch (err) {
       console.error("向量化失败", err);
-      await updateBookVectorizationMeta(book.id, {
-        status: "failed",
-        finishedAt: Date.now(),
-      });
+      if (vectorizationStarted) {
+        await updateBookVectorizationMeta(book.id, {
+          status: "failed",
+          finishedAt: Date.now(),
+        });
+      }
       setVectorizeProgress(null);
       const errorMessage = `《${book.title}》向量化失败`;
-      toast.error("向量化失败，请检查嵌入服务是否可用");
+      toast.error(err instanceof Error ? err.message : "向量化失败，请检查嵌入服务是否可用");
       addNotification(errorMessage);
       if (onRefresh) await onRefresh();
     }

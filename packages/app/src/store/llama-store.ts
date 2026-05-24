@@ -1,9 +1,9 @@
 import type { SessionInfo } from "@/components/settings/llama-client";
-import { LlamaServerManager, LlamacppClient } from "@/components/settings/llama-client";
 import { PRESET_EMBEDDING_MODELS, PRESET_MODELS_VERSION, type PresetModel } from "@/constants/preset-models";
 import { tauriStorageKey } from "@/constants/tauri-storage";
+import { createEncryptedStorage } from "@/lib/encrypted-storage";
 import { tauriStorage } from "@/lib/tauri-storage";
-import { getAppDataDir } from "@/services/model-service";
+import { supportsLocalLlm } from "@/utils/platform-features";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
@@ -125,11 +125,12 @@ export const useLlamaStore = create<LlamaState>()(
       },
       hasVectorCapability: () => {
         const { vectorModelEnabled, modelPath } = get();
+        const hasLocalModel = supportsLocalLlm() && modelPath != null && modelPath !== "";
         if (vectorModelEnabled) {
           const selectedModel = get().getSelectedVectorModel();
-          return selectedModel != null || (modelPath != null && modelPath !== "");
+          return selectedModel != null || hasLocalModel;
         }
-        return modelPath != null && modelPath !== "";
+        return hasLocalModel;
       },
       resetVectorModels: () =>
         set({
@@ -192,7 +193,16 @@ export const useLlamaStore = create<LlamaState>()(
           return;
         }
 
+        if (!supportsLocalLlm()) {
+          set({ serverStatus: "当前平台仅支持远程向量模型" });
+          return;
+        }
+
         try {
+          const [{ LlamaServerManager, LlamacppClient }, { getAppDataDir }] = await Promise.all([
+            import("@/components/settings/llama-client"),
+            import("@/services/model-service"),
+          ]);
           const client = new LlamacppClient();
           const sessions = await client.getAllSessions();
           if (sessions && sessions.length > 0) {
@@ -219,7 +229,7 @@ export const useLlamaStore = create<LlamaState>()(
     }),
     {
       name: tauriStorageKey.llamaStore,
-      storage: createJSONStorage(() => tauriStorage),
+      storage: createJSONStorage(() => createEncryptedStorage(tauriStorage)),
       version: PRESET_MODELS_VERSION,
       migrate: (persistedState: any, version: number) => {
         if (version < PRESET_MODELS_VERSION) {

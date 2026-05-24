@@ -1,4 +1,5 @@
 use super::models::*;
+use crate::core::sync::run_schema_migrations;
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
@@ -91,8 +92,12 @@ pub async fn update_note(app_handle: AppHandle, data: UpdateNoteData) -> Result<
     }
 
     separated.push("updated_at = ").push_bind(now);
+    separated.push("sync_status = 'pending'");
 
-    query_builder.push(" WHERE id = ").push_bind(&data.id);
+    query_builder
+        .push(" WHERE id = ")
+        .push_bind(&data.id)
+        .push(" AND deleted_at IS NULL");
 
     let query = query_builder.build();
 
@@ -115,7 +120,12 @@ pub async fn update_note(app_handle: AppHandle, data: UpdateNoteData) -> Result<
 pub async fn delete_note(app_handle: AppHandle, id: String) -> Result<(), String> {
     let db_pool = get_db_pool(&app_handle).await?;
 
-    let result = sqlx::query("DELETE FROM notes WHERE id = ?")
+    let now = chrono::Utc::now().timestamp_millis();
+    let result = sqlx::query(
+        "UPDATE notes SET deleted_at = ?, updated_at = ?, sync_status = 'pending' WHERE id = ? AND deleted_at IS NULL",
+    )
+        .bind(now)
+        .bind(now)
         .bind(&id)
         .execute(&db_pool)
         .await
@@ -132,7 +142,7 @@ pub async fn delete_note(app_handle: AppHandle, id: String) -> Result<(), String
 pub async fn get_note_by_id(app_handle: AppHandle, id: String) -> Result<Option<Note>, String> {
     let db_pool = get_db_pool(&app_handle).await?;
 
-    let row = sqlx::query("SELECT * FROM notes WHERE id = ?")
+    let row = sqlx::query("SELECT * FROM notes WHERE id = ? AND deleted_at IS NULL")
         .bind(&id)
         .fetch_optional(&db_pool)
         .await
@@ -193,10 +203,10 @@ async fn execute_normal_query(
     limit: i64,
     offset: i64,
 ) -> Result<Vec<sqlx::sqlite::SqliteRow>, sqlx::Error> {
-    let mut query_builder = sqlx::QueryBuilder::new("SELECT * FROM notes");
+    let mut query_builder = sqlx::QueryBuilder::new("SELECT * FROM notes WHERE deleted_at IS NULL");
 
     if let Some(ref book_id) = opts.book_id {
-        query_builder.push(" WHERE book_id = ").push_bind(book_id);
+        query_builder.push(" AND book_id = ").push_bind(book_id);
     }
 
     query_builder.push(&format!(" ORDER BY {} {}", sort_field, order));
@@ -214,7 +224,11 @@ async fn get_db_pool(app_handle: &AppHandle) -> Result<SqlitePool, String> {
     let db_path = app_data_dir.join("database").join("app.db");
     let db_url = format!("sqlite:{}", db_path.display());
 
-    SqlitePool::connect(&db_url)
+    let pool = SqlitePool::connect(&db_url)
         .await
-        .map_err(|e| format!("数据库连接失败: {}", e))
+        .map_err(|e| format!("数据库连接失败: {}", e))?;
+    run_schema_migrations(&pool)
+        .await
+        .map_err(|e| format!("数据库迁移失败: {}", e))?;
+    Ok(pool)
 }

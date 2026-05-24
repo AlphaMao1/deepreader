@@ -1,4 +1,5 @@
 import { tauriStorageKey } from "@/constants/tauri-storage";
+import { createEncryptedStorage } from "@/lib/encrypted-storage";
 import { tauriStorage } from "@/lib/tauri-storage";
 import {
   DEFAULT_BOOK_FONT,
@@ -23,23 +24,26 @@ interface AppSettingsState {
   setTavilyApiKey: (apiKey: string) => void;
 }
 
+const createDefaultSettings = (): SystemSettings =>
+  ({
+    ...DEFAULT_SYSTEM_SETTINGS,
+    version: SYSTEM_SETTINGS_VERSION,
+    globalReadSettings: DEFAULT_READSETTINGS,
+    globalViewSettings: {
+      ...DEFAULT_BOOK_LAYOUT,
+      ...DEFAULT_BOOK_STYLE,
+      ...DEFAULT_BOOK_FONT,
+      ...(isCJKEnv() ? DEFAULT_CJK_VIEW_SETTINGS : {}),
+      ...DEFAULT_VIEW_CONFIG,
+    },
+  }) as SystemSettings;
+
 export const useAppSettingsStore = create<AppSettingsState>()(
   subscribeWithSelector(
     persist(
       (set) => ({
         isSettingsDialogOpen: false,
-        settings: {
-          ...DEFAULT_SYSTEM_SETTINGS,
-          version: SYSTEM_SETTINGS_VERSION,
-          globalReadSettings: DEFAULT_READSETTINGS,
-          globalViewSettings: {
-            ...DEFAULT_BOOK_LAYOUT,
-            ...DEFAULT_BOOK_STYLE,
-            ...DEFAULT_BOOK_FONT,
-            ...(isCJKEnv() ? DEFAULT_CJK_VIEW_SETTINGS : {}),
-            ...DEFAULT_VIEW_CONFIG,
-          },
-        } as SystemSettings,
+        settings: createDefaultSettings(),
         toggleSettingsDialog: () => set((state) => ({ isSettingsDialogOpen: !state.isSettingsDialogOpen })),
         setSettings: (settings: SystemSettings) => set({ settings }),
         setTavilyApiKey: (apiKey: string) =>
@@ -52,10 +56,32 @@ export const useAppSettingsStore = create<AppSettingsState>()(
       }),
       {
         name: tauriStorageKey.appSettings,
-        storage: createJSONStorage(() => tauriStorage),
+        storage: createJSONStorage(() => createEncryptedStorage(tauriStorage)),
         partialize: (state) => ({
           settings: state.settings,
         }),
+        merge: (persistedState, currentState) => {
+          const persisted = persistedState as Partial<AppSettingsState> | undefined;
+          const persistedSettings = persisted?.settings ?? ({} as Partial<SystemSettings>);
+          const defaultSettings = createDefaultSettings();
+
+          return {
+            ...currentState,
+            ...persisted,
+            settings: {
+              ...defaultSettings,
+              ...persistedSettings,
+              globalReadSettings: {
+                ...defaultSettings.globalReadSettings,
+                ...(persistedSettings.globalReadSettings ?? {}),
+              },
+              globalViewSettings: {
+                ...defaultSettings.globalViewSettings,
+                ...(persistedSettings.globalViewSettings ?? {}),
+              },
+            },
+          };
+        },
       },
     ),
   ),

@@ -5,6 +5,10 @@ export type LibraryViewModeType = "grid" | "list";
 export type LibrarySortByType = "title" | "author" | "updated" | "created" | "size" | "format";
 export type LibraryCoverFitType = "crop" | "fit";
 
+export interface CloudSyncUserState {
+  lastSyncedAt: number;
+}
+
 export interface ReadSettings {
   sideBarWidth: string;
   isSideBarPinned: boolean;
@@ -42,6 +46,13 @@ export interface SystemSettings {
   lastSyncedAtBooks: number;
   lastSyncedAtConfigs: number;
   lastSyncedAtNotes: number;
+  cloudSyncEnabled: boolean;
+  epubCloudSyncEnabled: boolean;
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  lastSyncedAtCloud: number;
+  cloudSyncStateByUserId: Record<string, CloudSyncUserState>;
+  syncIntervalSeconds: number;
 
   globalReadSettings: ReadSettings;
   globalViewSettings: ViewSettings;

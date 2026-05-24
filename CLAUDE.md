@@ -1,5 +1,19 @@
 # AI 工作指南
 
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs are tracked in GitHub Issues for `AlphaMao1/deepreader`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the default five-label triage vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This repo uses a single global `CONTEXT.md` plus optional ADRs under `docs/adr/`. See `docs/agents/domain.md`.
+
 ## 沟通优先原则
 
 请按照以下要求工作：
@@ -37,4 +51,4 @@
 ### 8. **最终要求**
 每个步骤完成后最后一个操作必须是调用 feedback 工具。除非我主动停止，否则最后一个操作就是调用 feedback 工具和我确认。
 
-**记住：保持沟通的连续性和透明度是第一位的。**  
+**记住：保持沟通的连续性和透明度是第一位的。**

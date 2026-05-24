@@ -7,6 +7,7 @@ import { ChevronRight, Server } from "lucide-react";
 import { useState } from "react";
 import FontManager from "./font-manager";
 import GeneralSettings from "./general";
+import CloudSyncSettings from "./cloud-sync";
 import LlamaSettings from "./llama";
 import ProviderDetailSettings from "./provider-detail";
 import ProvidersSettings from "./providers";
@@ -20,6 +21,7 @@ interface SettingsDialogProps {
 
 type SettingsKey =
   | "general"
+  | "cloud-sync"
   | "font-manager"
   | "llama"
   | "tts"
@@ -65,6 +67,7 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
 
   const settingsItems: SettingsItem[] = [
     { key: "general", label: "常规" },
+    { key: "cloud-sync", label: "账号同步" },
     { key: "font-manager", label: "字体管理" },
     { key: "llama", label: "向量模型" },
     { key: "tts", label: "语音模型" },
@@ -98,6 +101,8 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
     switch (activeKey) {
       case "general":
         return <GeneralSettings />;
+      case "cloud-sync":
+        return <CloudSyncSettings />;
       case "llama":
         return <LlamaSettings />;
       case "tts":

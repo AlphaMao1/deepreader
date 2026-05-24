@@ -48,6 +48,13 @@ export const DEFAULT_SYSTEM_SETTINGS: Partial<SystemSettings> = {
   lastSyncedAtBooks: 0,
   lastSyncedAtConfigs: 0,
   lastSyncedAtNotes: 0,
+  cloudSyncEnabled: false,
+  epubCloudSyncEnabled: false,
+  supabaseUrl: "",
+  supabaseAnonKey: "",
+  lastSyncedAtCloud: 0,
+  cloudSyncStateByUserId: {},
+  syncIntervalSeconds: 30,
 };
 
 export const DEFAULT_READSETTINGS: ReadSettings = {

@@ -29,6 +29,7 @@ Objective:
 - `cargo check --lib --target aarch64-linux-android`
   - First run found a real OpenSSL/TLS cross-target blocker.
   - After switching Rust `reqwest` dependencies to Rustls, the check progressed to the Android NDK clang environment gate.
+- External validation runbook exists at `docs/handoff/external-validation-runbook-2026-05-24.md`.
 
 After this audit was added, the main local verification commands were re-run and remained green:
 
@@ -61,6 +62,7 @@ Requires a real Supabase project/account and manual evidence capture:
 - Run Profile A -> Profile B sync restore.
 - Confirm reading progress, EPUB binary restore/open, provider config restore, tombstones, and active-name tag/skill behavior.
 - Record results using `docs/testing/m1-supabase-smoke-results-template.md`.
+- Follow `docs/handoff/external-validation-runbook-2026-05-24.md`.
 
 ### Android Environment
 
@@ -70,6 +72,7 @@ Requires Android SDK/JDK/NDK installation and license acceptance:
 - Re-run `pnpm --filter app tauri android init --ci`.
 - Re-run `pnpm --filter app tauri android build`.
 - Verify on emulator/device in the M3 spike.
+- Follow `docs/handoff/external-validation-runbook-2026-05-24.md`.
 
 ## Handoff Judgment
 

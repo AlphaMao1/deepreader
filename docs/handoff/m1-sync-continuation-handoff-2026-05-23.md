@@ -48,6 +48,7 @@ GitHub issues #1-#9 are now labeled `ready-for-human` where the remaining work r
 - Local verification record exists at `docs/testing/local-verification-2026-05-23.md`.
 - Acceptance evidence audit exists at `docs/testing/m1-acceptance-audit-2026-05-23.md`.
 - Completion audit exists at `docs/handoff/m1-sync-completion-audit-2026-05-24.md`.
+- External validation runbook exists at `docs/handoff/external-validation-runbook-2026-05-24.md`.
 - Dirty worktree inventory exists at `docs/m1-worktree-inventory-2026-05-23.md`.
 
 ## Verified Locally
@@ -109,4 +110,4 @@ From `D:\Project\deepreader-m1-auth-sync`:
 git diff --check
 ```
 
-GitHub issue bodies and comments were updated with the latest verification evidence on 2026-05-24. Android checks should follow the M3 spike PRD rather than being treated as part of the desktop M1 merge gate. See `docs/testing/android-preflight-2026-05-24.md` for the Android environment status and `docs/handoff/m1-sync-completion-audit-2026-05-24.md` for the final issue-by-issue audit.
+GitHub issue bodies and comments were updated with the latest verification evidence on 2026-05-24. Android checks should follow the M3 spike PRD rather than being treated as part of the desktop M1 merge gate. See `docs/testing/android-preflight-2026-05-24.md` for the Android environment status, `docs/handoff/m1-sync-completion-audit-2026-05-24.md` for the final issue-by-issue audit, and `docs/handoff/external-validation-runbook-2026-05-24.md` for the remaining external verification steps.

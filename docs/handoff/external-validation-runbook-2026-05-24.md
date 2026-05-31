@@ -12,6 +12,11 @@ This runbook covers the remaining gates for PR #10 after the local M1 Sync and A
 
 ## Supabase Smoke Gate
 
+2026-05-31 status: backend/client Supabase smoke passed with follow-up UI gaps. See:
+
+- `docs/testing/m1-supabase-smoke-results-2026-05-31.md`
+- `docs/handoff/m1-supabase-validation-and-pwa-handoff-2026-05-31.md`
+
 Use this only with a real Supabase project and disposable test account/API keys.
 
 1. Apply the migration:
@@ -51,6 +56,8 @@ Use this only with a real Supabase project and disposable test account/API keys.
    - Tombstones remain tombstones and same-name tag/skill restore works with active-row unique indexes.
 
 ## Android Toolchain Gate
+
+2026-05-31 status: native Android validation is deferred. The next planned route is Mobile PWA Companion, because the current product goal is phone reading/progress sync and this machine does not have the large Android toolchain installed.
 
 Current machine state from the preflight:
 
@@ -96,10 +103,11 @@ cargo check --lib --target aarch64-linux-android
 
 ## Final PR Decision
 
-Keep PR #10 as draft until both are true:
+Keep PR #10 as draft until the team chooses one of these routes:
 
-- Supabase smoke result file is recorded without secrets.
-- Android toolchain/build result is recorded, or the team explicitly decides Android device/emulator verification belongs to a later M3 PR.
+- Treat Supabase backend smoke as sufficient for M1 backend merge, then finish only the remaining desktop UI smoke.
+- Or keep PR #10 draft until the remaining live desktop UI smoke is done.
+- Or explicitly split mobile into a new PWA PRD/issues track and move native Android verification to a later optional PR.
 
 After those decisions, update:
 

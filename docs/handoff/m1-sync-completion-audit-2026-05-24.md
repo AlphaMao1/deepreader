@@ -55,18 +55,30 @@ After this audit was added, the main local verification commands were re-run and
 
 ### Real Supabase
 
-Requires a real Supabase project/account and manual evidence capture:
+2026-05-31 update:
 
-- Apply `packages/app/supabase/migrations/001_m1_auth_sync.sql`.
-- Verify RLS and Storage policies.
-- Run Profile A -> Profile B sync restore.
-- Confirm reading progress, EPUB binary restore/open, provider config restore, tombstones, and active-name tag/skill behavior.
-- Record results using `docs/testing/m1-supabase-smoke-results-template.md`.
-- Follow `docs/handoff/external-validation-runbook-2026-05-24.md`.
+- Real Supabase project was restored from paused state and returned to `Healthy`.
+- `packages/app/supabase/migrations/001_m1_auth_sync.sql` was applied successfully.
+- SQL verification confirmed 10 sync tables, RLS on all 10, 10 owner policies, private `epubs` bucket, and one `epubs_owner_policy`.
+- A client-level smoke passed for email login, account-scoped row writes, Profile B progress read, private Storage upload/download, anonymous RLS isolation, and tag/skill tombstone same-name restore.
+- Result file: `docs/testing/m1-supabase-smoke-results-2026-05-31.md`.
+
+Remaining live UI validation:
+
+- Two separate Tauri desktop profiles importing/opening a real EPUB through the UI.
+- Recovery Key provider config backup/restore through the live settings UI.
+- Wrong Recovery Key failure through the live settings UI.
+- Account-boundary warning UI with two different accounts.
 
 ### Android Environment
 
-Requires Android SDK/JDK/NDK installation and license acceptance:
+2026-05-31 update:
+
+- Android native validation is deferred.
+- The near-term mobile direction is now Mobile PWA Companion, because the user does not have the Android toolchain installed and the core product goal is cross-device reading sync.
+- New handoff: `docs/handoff/m1-supabase-validation-and-pwa-handoff-2026-05-31.md`.
+
+Native Android still requires Android SDK/JDK/NDK installation and license acceptance if revived later:
 
 - Set `ANDROID_HOME`, `ANDROID_SDK_ROOT`, `JAVA_HOME`, and `NDK_HOME`.
 - Re-run `pnpm --filter app tauri android init --ci`.
@@ -76,4 +88,4 @@ Requires Android SDK/JDK/NDK installation and license acceptance:
 
 ## Handoff Judgment
 
-The requested automated portion is at a handoff-ready state: issues, PRD, docs, tests, desktop build, Android preflight notes, and GitHub issue bodies have been synchronized. The active goal is not complete because #8 and the Android SDK/device gates remain unverified external dependencies.
+The requested automated portion is at a handoff-ready state: issues, PRD, docs, tests, desktop build, Android preflight notes, and GitHub issue bodies have been synchronized. Supabase backend validation is now passed with follow-up UI smoke gaps. Native Android is no longer the immediate blocker if the next phase adopts the Mobile PWA Companion route.

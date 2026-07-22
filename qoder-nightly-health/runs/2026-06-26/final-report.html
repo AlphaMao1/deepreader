@@ -1,0 +1,294 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>DeepReader 夜间仓库体检报告 - 2026-06-26</title>
+<style>
+  @page { size: A4; margin: 20mm 18mm 22mm 18mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Microsoft YaHei", "Segoe UI", Roboto, sans-serif; color: #1a1a2e; line-height: 1.7; font-size: 10.5pt; background: #fff; }
+
+  /* Cover Page */
+  .cover { page-break-after: always; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 90vh; text-align: center; background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%); color: #fff; padding: 60px 40px; border-radius: 0; }
+  .cover-logo { font-size: 48pt; font-weight: 800; letter-spacing: 3px; margin-bottom: 8px; background: linear-gradient(90deg, #00d2ff, #3a7bd5); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .cover-sub { font-size: 18pt; font-weight: 300; color: #b8c6db; margin-bottom: 40px; }
+  .cover-date { font-size: 13pt; color: #8892b0; margin-bottom: 6px; }
+  .cover-branch { font-size: 10pt; color: #64748b; font-family: "Cascadia Code", "Fira Code", monospace; background: rgba(255,255,255,0.08); padding: 6px 18px; border-radius: 20px; margin-top: 12px; }
+  .cover-status { margin-top: 36px; display: inline-block; padding: 10px 36px; border-radius: 30px; font-size: 15pt; font-weight: 700; }
+  .status-yellow { background: linear-gradient(90deg, #f7971e, #ffd200); color: #1a1a2e; }
+  .cover-meta { margin-top: 48px; font-size: 9pt; color: #64748b; line-height: 2; }
+
+  /* Content */
+  .content { padding: 0 4px; }
+  h1 { font-size: 18pt; color: #0f0c29; border-bottom: 3px solid #3a7bd5; padding-bottom: 8px; margin: 28px 0 16px 0; }
+  h2 { font-size: 13pt; color: #302b63; margin: 22px 0 10px 0; padding-left: 12px; border-left: 4px solid #3a7bd5; }
+  h3 { font-size: 11pt; color: #24243e; margin: 14px 0 6px 0; }
+  p { margin: 6px 0; text-align: justify; }
+  ul, ol { margin: 6px 0 6px 20px; }
+  li { margin: 3px 0; }
+  strong { color: #0f0c29; }
+  code { font-family: "Cascadia Code", "Fira Code", monospace; background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-size: 9.5pt; color: #c7254e; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; margin: 10px 0 16px 0; font-size: 9.5pt; }
+  th { background: #302b63; color: #fff; padding: 8px 10px; text-align: left; font-weight: 600; }
+  td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  tr:hover td { background: #eef2ff; }
+
+  /* Status badges */
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 8.5pt; font-weight: 700; letter-spacing: 0.5px; }
+  .badge-pass { background: #dcfce7; color: #166534; }
+  .badge-fail { background: #fee2e2; color: #991b1b; }
+  .badge-skip { background: #fef3c7; color: #92400e; }
+  .badge-info { background: #dbeafe; color: #1e40af; }
+
+  /* Finding cards */
+  .finding { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin: 10px 0; page-break-inside: avoid; }
+  .finding-p1 { border-left: 5px solid #ef4444; }
+  .finding-p2 { border-left: 5px solid #f59e0b; }
+  .finding-p3 { border-left: 5px solid #3b82f6; }
+  .finding-title { font-weight: 700; font-size: 11pt; margin-bottom: 6px; }
+  .finding-meta { font-size: 9pt; color: #64748b; margin-bottom: 6px; }
+  .finding p { font-size: 10pt; }
+
+  /* Summary box */
+  .summary-box { background: linear-gradient(135deg, #fefce8, #fef9c3); border: 1px solid #fde047; border-radius: 10px; padding: 18px 20px; margin: 14px 0; }
+  .summary-box h3 { color: #854d0e; margin-bottom: 8px; }
+
+  /* Top actions */
+  .action-list { counter-reset: action; }
+  .action-list li { counter-increment: action; list-style: none; padding: 8px 12px 8px 42px; margin: 6px 0; background: #f0f9ff; border-radius: 6px; border-left: 3px solid #3a7bd5; position: relative; }
+  .action-list li::before { content: counter(action); position: absolute; left: 12px; top: 8px; background: #3a7bd5; color: #fff; width: 22px; height: 22px; border-radius: 50%; text-align: center; line-height: 22px; font-size: 9pt; font-weight: 700; }
+
+  /* Risk table */
+  .risk-table td:first-child { font-weight: 600; white-space: nowrap; }
+
+  /* Footer */
+  .footer { margin-top: 36px; padding-top: 12px; border-top: 2px solid #e2e8f0; font-size: 8.5pt; color: #94a3b8; text-align: center; }
+
+  /* Section break */
+  .section { page-break-before: auto; }
+  .page-break { page-break-before: always; }
+
+  /* Limitations */
+  .limit-box { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px 16px; margin: 10px 0; }
+  .limit-box li { font-size: 9.5pt; color: #475569; }
+</style>
+</head>
+<body>
+
+<!-- ==================== COVER ==================== -->
+<div class="cover">
+  <div class="cover-logo">DeepReader</div>
+  <div class="cover-sub">夜间仓库体检报告</div>
+  <div class="cover-date">2026 年 6 月 26 日 22:58 CST</div>
+  <div class="cover-branch">feature/web-pwa-reader @ 73f005b</div>
+  <div class="cover-status status-yellow">YELLOW - 需要关注</div>
+  <div class="cover-meta">
+    仓库路径：D:\Project\deepreader<br>
+    Node v24.12.0 &middot; pnpm 10.33.0 &middot; Rust 1.94.1 &middot; Git 2.52.0
+  </div>
+</div>
+
+<!-- ==================== CONTENT ==================== -->
+<div class="content">
+
+<h1>1. 结论</h1>
+
+<div class="summary-box">
+  <h3>总体状态：YELLOW（黄色 - 需要关注）</h3>
+  <p><strong>一句话结论：</strong>仓库核心构建基本通过，但存在 1 个 TypeScript 编译失败（app-tabs）、大量 Biome 格式问题（1457 项）、以及较多未使用的导出和文件需要清理。</p>
+</div>
+
+<h2>今天最值得处理的 3 件事</h2>
+<ol class="action-list">
+  <li><strong>修复 app-tabs 的 TS2322 类型错误</strong> — <code>enableDragRegion</code> 属性不存在于目标组件类型定义中</li>
+  <li><strong>清理生产代码中遗留的 console.log</strong> — 4 处活跃在 reading-session-service、theme-store、iframe-service 中</li>
+  <li><strong>评估 knip 报告的 60 个未使用文件</strong> — 确认哪些可以安全删除以减少代码库膨胀</li>
+</ol>
+
+<!-- ==================== 运行信息 ==================== -->
+<h1>2. 本次运行信息</h1>
+
+<table>
+  <tr><th style="width:30%">项目</th><th>内容</th></tr>
+  <tr><td>运行时间</td><td>2026-06-26 22:58 ~ 23:35 (CST)</td></tr>
+  <tr><td>仓库路径</td><td><code>D:\Project\deepreader</code></td></tr>
+  <tr><td>当前分支</td><td><code>feature/web-pwa-reader</code></td></tr>
+  <tr><td>当前 commit</td><td><code>73f005b4b0f279f408c1cdfd3761e243dbcbe268</code></td></tr>
+  <tr><td>worktree 状态</td><td><strong>dirty</strong> — 2 个已修改文件 + 3 个未跟踪目录/文件</td></tr>
+  <tr><td>Node.js</td><td>v24.12.0</td></tr>
+  <tr><td>pnpm</td><td>10.33.0（有可用更新 11.9.0）</td></tr>
+  <tr><td>Rust</td><td>rustc 1.94.1 (e408947bf 2026-03-25)</td></tr>
+  <tr><td>Cargo</td><td>cargo 1.94.1 (29ea6fb6a 2026-03-24)</td></tr>
+  <tr><td>Git</td><td>2.52.0.windows.1</td></tr>
+</table>
+
+<h3>Worktree 未提交改动</h3>
+<ul>
+  <li>已修改：<code>package.json</code>（+3 行）、<code>pnpm-lock.yaml</code>（+40 行）</li>
+  <li>未跟踪：<code>context.md</code>、<code>docs/prd/</code>、<code>packages/web/</code></li>
+</ul>
+
+<!-- ==================== 工具链 ==================== -->
+<h1>3. 工具链配置结果</h1>
+<p>所有必需工具链均已可用，无需额外安装。</p>
+
+<table>
+  <tr><th>工具</th><th>状态</th><th>版本</th></tr>
+  <tr><td>Node.js</td><td><span class="badge badge-pass">可用</span></td><td>v24.12.0</td></tr>
+  <tr><td>corepack</td><td><span class="badge badge-pass">可用</span></td><td>0.34.5</td></tr>
+  <tr><td>pnpm</td><td><span class="badge badge-pass">可用</span></td><td>10.33.0</td></tr>
+  <tr><td>rustc</td><td><span class="badge badge-pass">可用</span></td><td>1.94.1</td></tr>
+  <tr><td>cargo</td><td><span class="badge badge-pass">可用</span></td><td>1.94.1</td></tr>
+  <tr><td>git</td><td><span class="badge badge-pass">可用</span></td><td>2.52.0</td></tr>
+  <tr><td>rg (ripgrep)</td><td><span class="badge badge-skip">不可用</span></td><td>未安装在 PATH 中，使用内置 Grep 替代</td></tr>
+  <tr><td>cargo audit</td><td><span class="badge badge-skip">未验证</span></td><td>本次未单独运行</td></tr>
+</table>
+
+<!-- ==================== 检查矩阵 ==================== -->
+<div class="page-break"></div>
+<h1>4. 检查矩阵</h1>
+
+<table>
+  <tr><th>检查项</th><th>结果</th><th>备注</th></tr>
+  <tr><td>依赖一致性 (<code>pnpm install --frozen-lockfile</code>)</td><td><span class="badge badge-pass">PASS</span></td><td>Lockfile up to date，14s 完成</td></tr>
+  <tr><td>app-tabs build</td><td><span class="badge badge-fail">FAIL</span></td><td>TS2322: <code>enableDragRegion</code> 属性不存在</td></tr>
+  <tr><td>foliate-js build</td><td><span class="badge badge-pass">PASS</span></td><td>有 node-resolve 警告但不影响构建</td></tr>
+  <tr><td>web typecheck (<code>tsc -b</code>)</td><td><span class="badge badge-pass">PASS</span></td><td>无错误</td></tr>
+  <tr><td>web build</td><td><span class="badge badge-pass">PASS</span></td><td>1666 modules，32s</td></tr>
+  <tr><td>app build (<code>tsc && vite build</code>)</td><td><span class="badge badge-pass">PASS</span></td><td>5117 modules，15m43s；chunk size 警告</td></tr>
+  <tr><td>Tauri cargo check（含 EPUB + llamacpp 插件）</td><td><span class="badge badge-pass">PASS</span></td><td>3 个 unused import 警告，16m09s</td></tr>
+  <tr><td>Biome check</td><td><span class="badge badge-fail">FAIL</span></td><td>1457 errors, 2 warnings（格式 + import 排序）</td></tr>
+  <tr><td>pnpm audit</td><td><span class="badge badge-skip">未完成</span></td><td>npmmirror 镜像不支持 audit endpoint</td></tr>
+  <tr><td>TODO / 风险模式扫描</td><td><span class="badge badge-info">完成</span></td><td>16 TODO/FIXME, 7 console.log, 6 innerHTML, 17 unwrap/expect</td></tr>
+  <tr><td>knip 未使用代码扫描（optional）</td><td><span class="badge badge-info">完成</span></td><td>60 未使用文件, 68 未使用类型, 3 重复导出</td></tr>
+</table>
+
+<!-- ==================== 主要发现 ==================== -->
+<h1>5. 主要发现</h1>
+
+<div class="finding finding-p1">
+  <div class="finding-title">5.1 [P1] app-tabs TypeScript 编译失败</div>
+  <div class="finding-meta">自动修复：否（需要理解业务意图）</div>
+  <p><strong>证据：</strong><code>src/component.tsx(108,106): error TS2322: Property 'enableDragRegion' does not exist on type</code></p>
+  <p><strong>影响：</strong>app-tabs 包无法通过 tsc 编译。虽然 app 主包的 vite build 仍然通过（app-tabs 的 tsc 不阻塞 vite），但这是一个明确的类型错误。</p>
+  <p><strong>建议：</strong>在 app-tabs 的 props 类型定义中添加 <code>enableDragRegion</code> 属性，或从调用处移除该属性。</p>
+</div>
+
+<div class="finding finding-p2">
+  <div class="finding-title">5.2 [P2] Biome 格式 / Import 排序问题大量积压</div>
+  <div class="finding-meta">自动修复：是（但需要单独 PR，避免与其他改动混淆）</div>
+  <p><strong>证据：</strong>1457 errors, 2 warnings。主要是格式不符合 biome formatter 规则、import 未排序。</p>
+  <p><strong>影响：</strong>代码风格不一致，不影响运行，但会增加 PR diff 噪音。</p>
+  <p><strong>建议：</strong>选择合适时机运行 <code>biome check --fix --unsafe</code> 一次性修复，作为独立 PR 提交。</p>
+</div>
+
+<div class="finding finding-p2">
+  <div class="finding-title">5.3 [P2] pnpm audit 无法运行</div>
+  <div class="finding-meta">自动修复：否（需要配置变更）</div>
+  <p><strong>证据：</strong><code>ERR_PNPM_AUDIT_ENDPOINT_NOT_EXISTS</code> — npmmirror 镜像不提供 audit endpoint。</p>
+  <p><strong>影响：</strong>无法确认 JS 依赖是否存在已知安全漏洞。</p>
+  <p><strong>建议：</strong>临时切换 registry 到 <code>https://registry.npmjs.org</code> 运行 audit，或在 CI 中配置官方 registry。</p>
+</div>
+
+<div class="finding finding-p2">
+  <div class="finding-title">5.4 [P2] 大量未使用文件和导出（knip 报告）</div>
+  <div class="finding-meta">自动修复：否（需要人工确认每个文件/导出的用途）</div>
+  <p><strong>证据：</strong>60 个未使用文件、68 个未使用导出类型、3 个重复导出。</p>
+  <p><strong>影响：</strong>代码库膨胀，增加维护成本。部分文件可能是正在开发中的功能（如 prompt-kit 组件）。</p>
+  <p><strong>建议：</strong>逐个确认是否可以安全删除。注意 <code>packages/web/</code> 是新增的未跟踪目录，knip 可能未正确覆盖。</p>
+</div>
+
+<div class="finding finding-p3">
+  <div class="finding-title">5.5 [P3] Rust 代码 unused import 警告</div>
+  <div class="finding-meta">自动修复：是</div>
+  <p><strong>证据：</strong>3 个 unused import 警告（jan-utils: <code>CommandExt</code>, llamacpp: <code>Duration</code>, <code>timeout</code>）</p>
+  <p><strong>影响：</strong>编译噪音，不影响功能。</p>
+  <p><strong>建议：</strong>运行 <code>cargo fix</code> 或手动移除。</p>
+</div>
+
+<div class="finding finding-p3">
+  <div class="finding-title">5.6 [P3] 生产代码中遗留 console.log</div>
+  <div class="finding-meta">自动修复：是（移除或替换）</div>
+  <p><strong>证据：</strong>4 处活跃 console.log — reading-session-service.ts, theme-store.ts (x3), iframe-service.ts</p>
+  <p><strong>影响：</strong>生产环境输出调试信息，可能影响性能和安全。</p>
+  <p><strong>建议：</strong>替换为正式日志框架或移除。</p>
+</div>
+
+<!-- ==================== TODO / 风险 ==================== -->
+<div class="page-break"></div>
+<h1>6. TODO / 风险模式摘要</h1>
+
+<table class="risk-table">
+  <tr><th>类别</th><th>数量</th><th>说明</th></tr>
+  <tr><td>TODO / FIXME / HACK / XXX</td><td>16</td><td>主要在 foliate-js（第三方 fork）和少量 app 代码中</td></tr>
+  <tr><td>@ts-ignore / @ts-expect-error</td><td>0</td><td>无</td></tr>
+  <tr><td>console.log（活跃）</td><td>4</td><td>reading-session-service, theme-store, iframe-service</td></tr>
+  <tr><td>console.log（已注释）</td><td>3</td><td>foliate-js/epub.js</td></tr>
+  <tr><td>debugger</td><td>0</td><td>无</td></tr>
+  <tr><td>innerHTML 使用</td><td>6</td><td>foliate-js(3), app-tabs(2), fb2.js(1) — 大部分是第三方代码</td></tr>
+  <tr><td>Rust unwrap / expect</td><td>17</td><td>主要在 tauri-plugin-epub 的文本处理管道中</td></tr>
+</table>
+
+<h2>风险评估</h2>
+<ul>
+  <li><strong>innerHTML 使用：</strong>大部分在 foliate-js（第三方 EPUB 渲染库），属于正常用法。biome 已关闭 <code>noDangerouslySetInnerHtml</code> 规则。需人工复核 app-tabs/chrome-tabs.ts 中的 innerHTML 赋值。</li>
+  <li><strong>Rust unwrap/expect：</strong>大部分在初始化代码中，属于「如果这里失败说明程序本身有问题」的场景。network.rs 中的 unwrap 有注释说明安全性。llamacpp commands.rs 中的 unwrap 在管道操作中使用，如果失败会 panic，建议后续改为 proper error handling。</li>
+  <li><strong>dict.js 中的 <code>throw new Error('TODO')</code>：</strong>这是 foliate-js 的未实现路径，不是遗留调试代码。</li>
+</ul>
+
+<!-- ==================== 明晚任务 ==================== -->
+<h1>7. 明晚适合继续自动跑的任务</h1>
+
+<table>
+  <tr><th>#</th><th>任务</th><th>验收方式</th></tr>
+  <tr><td>1</td><td><strong>Biome 格式修复 PR 生成</strong><br>运行 <code>biome check --fix --unsafe</code>，将修改写入临时分支</td><td>diff 只包含格式变更，不包含逻辑变更</td></tr>
+  <tr><td>2</td><td><strong>knip 未使用文件清理评估</strong><br>对 60 个未使用文件逐一检查最后修改时间和引用情况</td><td>生成清理建议清单</td></tr>
+  <tr><td>3</td><td><strong>Rust unused import 清理</strong><br>运行 <code>cargo fix --lib</code> 移除 unused imports</td><td>cargo check 无 unused import 警告</td></tr>
+  <tr><td>4</td><td><strong>pnpm audit 补充检查</strong><br>临时切换 registry 运行 audit</td><td>输出 audit 结果或明确记录失败原因</td></tr>
+  <tr><td>5</td><td><strong>console.log 清理</strong><br>移除或替换 4 处活跃 console.log</td><td>grep 确认无活跃 console.log</td></tr>
+</table>
+
+<!-- ==================== 自动化产物 ==================== -->
+<h1>8. 本次自动化产物</h1>
+
+<table>
+  <tr><th>产物</th><th>路径</th></tr>
+  <tr><td>主脚本</td><td><code>qoder-nightly-health\run-nightly-health.ps1</code></td></tr>
+  <tr><td>定时任务示例</td><td><code>qoder-nightly-health\register-windows-task.example.ps1</code></td></tr>
+  <tr><td>工作区说明</td><td><code>qoder-nightly-health\README.md</code></td></tr>
+  <tr><td>原始日志目录</td><td><code>qoder-nightly-health\runs\2026-06-26\raw\</code></td></tr>
+  <tr><td>本报告（PDF）</td><td><code>qoder-nightly-health\runs\2026-06-26\final-report.pdf</code></td></tr>
+</table>
+
+<h3>日志文件清单（12 个）</h3>
+<p><code>git-status.log</code> &middot; <code>pnpm-install.log</code> &middot; <code>app-tabs-build.log</code> &middot; <code>foliate-js-build.log</code> &middot; <code>web-test.log</code> &middot; <code>web-build.log</code> &middot; <code>app-build.log</code> &middot; <code>cargo-check-tauri.log</code> &middot; <code>biome-check.log</code> &middot; <code>pnpm-audit.log</code> &middot; <code>rg-todo-scan.log</code> &middot; <code>knip-scan.log</code></p>
+
+<!-- ==================== 限制说明 ==================== -->
+<h1>9. 限制说明</h1>
+
+<div class="limit-box">
+<p>本次体检<strong>未覆盖</strong>以下内容：</p>
+<ul>
+  <li><strong>未启动桌面应用</strong> — 没有运行 <code>pnpm dev</code> 或 <code>pnpm tauri dev</code>，未验证运行时行为</li>
+  <li><strong>未打 Tauri 安装包</strong> — 只跑了 <code>pnpm --filter app build</code>（tsc + vite build），不包含 Tauri 打包</li>
+  <li><strong>未运行端到端 UI 测试</strong> — 仓库中没有配置 E2E 测试框架</li>
+  <li><strong>未配置 API Key</strong> — 未测试 AI 对话、RAG 检索等需要模型服务的功能</li>
+  <li><strong>pnpm audit 未完成</strong> — npmmirror 镜像不支持 audit endpoint</li>
+  <li><strong>cargo audit 未运行</strong> — 未单独安装 cargo-audit</li>
+  <li><strong>未提交任何改动</strong> — 所有写入操作均限制在 <code>qoder-nightly-health/</code> 目录内</li>
+  <li><strong>未注册 Windows 定时任务</strong> — 只生成了注册示例脚本，未实际注册系统任务</li>
+  <li><strong>dirty worktree</strong> — 当前分支有未提交改动，可能影响体检结果的准确性</li>
+</ul>
+</div>
+
+<div class="footer">
+  DeepReader Nightly Repo Health Check &middot; Generated by Qoder &middot; 2026-06-26 23:35 CST<br>
+  本报告为自动化生成，未修改任何源代码。所有检查命令的实际输出保存在 raw/ 目录中。
+</div>
+
+</div>
+</body>
+</html>

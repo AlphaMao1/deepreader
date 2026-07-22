@@ -7,6 +7,9 @@
     "dev": "cd packages/app && pnpm tauri dev",
     "build": "cd packages/app && pnpm build && pnpm tauri build",
     "preview": "pnpm --filter app preview",
+    "web:dev": "pnpm --filter web dev",
+    "web:build": "pnpm --filter web build",
+    "web:preview": "pnpm --filter web preview",
     "tauri": "cd packages/app && pnpm tauri",
     "build:foliate": "pnpm --filter foliate-js build",
     "build:app-tabs": "pnpm --filter app-tabs build"
